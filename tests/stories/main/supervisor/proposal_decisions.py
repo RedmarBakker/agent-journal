@@ -1,13 +1,7 @@
 from journal.features.tasks.states.ready import Ready
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.supervisor.supervisor_proposal import SupervisorProposal
-
-
-def proposed(story):
-    result = story.supervisor_posts("/_supervisor/v1/apply", story.proposal_request)
-    result.expect_viewer_passed()
-    return result.viewer_answer["proposal_id"]
+from tests.stories.fixtures.supervisor.supervisor_proposal_to_decide import SupervisorProposalToDecide
 
 
 def records(story):
@@ -17,9 +11,9 @@ def records(story):
     )
 
 
-@story(SupervisorProposal, subject=AgentRole.MAIN)
+@story(SupervisorProposalToDecide, subject=AgentRole.MAIN)
 def test_an_owner_accepts_a_proposal_as_a_command_and_cannot_reuse_it(story):
-    proposal_id = proposed(story)
+    proposal_id = story.fixture.proposal_id
     path = f"/journal/supervisor/proposals/{proposal_id}/accept"
     accepted = story.user_presses_in(story.supervisor_environment, path, {})
     accepted.expect_viewer_passed()
@@ -54,9 +48,9 @@ def test_an_owner_accepts_a_proposal_as_a_command_and_cannot_reuse_it(story):
     story.expect_stack(story.agents.main, Ready)
 
 
-@story(SupervisorProposal, subject=AgentRole.MAIN)
+@story(SupervisorProposalToDecide, subject=AgentRole.MAIN)
 def test_an_owner_declines_a_proposal_and_cannot_reuse_it(story):
-    proposal_id = proposed(story)
+    proposal_id = story.fixture.proposal_id
     path = f"/journal/supervisor/proposals/{proposal_id}/decline"
     declined = story.user_presses_in(story.supervisor_environment, path, {})
     declined.expect_viewer_passed()
@@ -80,9 +74,9 @@ def test_an_owner_declines_a_proposal_and_cannot_reuse_it(story):
     story.expect_stack(story.agents.main, Ready)
 
 
-@story(SupervisorProposal, subject=AgentRole.MAIN)
+@story(SupervisorProposalToDecide, subject=AgentRole.MAIN)
 def test_an_owner_cannot_accept_or_decline_a_stale_proposal(story):
-    proposal_id = proposed(story)
+    proposal_id = story.fixture.proposal_id
     changed = story.user_types_in(
         story.supervisor_environment,
         f"plan priorities 'The owner changed the order' --plan {story.supervisor_plan}"

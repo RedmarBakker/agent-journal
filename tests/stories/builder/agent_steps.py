@@ -251,7 +251,7 @@ class AgentSteps:
             {**MAIN, "X-Journal-Supervisor-Token": agent.grant_credential},
         )
         action = body.get("change", {}).get("kind", "enroll")
-        return self.observed(f"the supervisor requests grant {action}", None, None, caller.environment)
+        return self.observed(f"the supervisor requests grant {action} through {route}", None, None, caller.environment)
 
     def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)

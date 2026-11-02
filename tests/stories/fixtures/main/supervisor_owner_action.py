@@ -1,51 +1,71 @@
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
 from journal.features.tasks.states.ready import Ready
 from tests.in_process import posted
-from tests.stories.fixtures.main.new_session import NewSession
+from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.state_fixture import StateFixture
 from tests.test_supervisor_actions import _admitted_maintenance_context, maintenance_request
 from tests.test_supervisor_authority import seeded
 
 
-def seed_owner_action(story, tier):
-    story.monkeypatch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
+def prepare_owner_action(story):
     fixture = seeded(story.app)
     context = _admitted_maintenance_context(story.app, story.monkeypatch, fixture, "bounded_write")
     story.closers.append(lambda: fixture.authority.secrets_store.drop(fixture.credentials))
     plan_id = fixture.plan.row_id
-    operation = {"kind": "plan_priorities", "plan_id": plan_id, "text": "Inspect the health check"}
-    request = maintenance_request(context, [operation], "owner-undo-action")
     with context["scope"].environment(fixture.owner_environment.row_id):
         before = context["maintenance"].plans.find(plan_id).priorities
+    environment_name = fixture.owner_environment.name
+    opened = story.user_opens_in(environment_name, "/journal/plans")
+    opened.expect_viewer_passed()
+    return {
+        "context": context,
+        "plan_id": plan_id,
+        "environment_name": environment_name,
+        "before": before,
+        "owner_actor": fixture.owner,
+    }
+
+
+def seed_owner_action(story, setup, tier):
+    story.monkeypatch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
+    context, plan_id = setup["context"], setup["plan_id"]
+    operation = {"kind": "plan_priorities", "plan_id": plan_id, "text": "Inspect the health check"}
+    request = maintenance_request(context, [operation], "owner-undo-action")
     story.viewer_status, story.viewer_answer = posted(
         story.app,
         "/_supervisor/v1/apply",
         request,
         {"X-Journal-Supervisor-Token": context["token"]},
     )
-    story.observed("the supervisor records a plan priorities action", None, None)
+    story.observed(f"the supervisor records a {tier} plan priorities action", None, None)
     story.last_step.expect_viewer_passed()
     story.last_step.expect_viewer_part(("data", "command_receipts", 0, "tier"), tier)
     return {
-        "plan_id": plan_id,
+        **setup,
         "receipt_id": story.viewer_answer["receipt_id"],
-        "environment_name": fixture.owner_environment.name,
-        "before": before,
-        "owner_actor": fixture.owner,
     }
 
 
-class SupervisorOwnerAction(StateFixture):
-    """A plan owner has a recorded supervisor plan-priorities action to undo."""
+class SupervisorOwnerActionSetup(StateFixture):
+    """A plan owner is ready to check an undo receipt."""
 
-    parent = NewSession
+    parent = WorkingAgent
     stack = (Ready,)
 
     def steps(self, story) -> None:
-        self._owner_action = seed_owner_action(story, "tier 1")
+        self._owner_action_setup = prepare_owner_action(story)
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)
+
+
+class SupervisorOwnerAction(SupervisorOwnerActionSetup):
+    """A plan owner has a recorded tier one supervisor action to undo."""
+
+    parent = SupervisorOwnerActionSetup
+
+    def steps(self, story) -> None:
+        self._owner_action = seed_owner_action(story, self._owner_action_setup, "tier 1")
 
     def copied(self):
         copy = super().copied()
