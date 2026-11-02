@@ -6,10 +6,9 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from supervisor_bridge.hints import ROW_EVENTS
-
 from journal.events.rows.check_completed import CheckCompleted
 from journal.events.rows.check_run_changed import CheckRunChanged
+from journal.features.supervisor.capability_catalogue import ROW_EVENTS
 from journal.features.supervisor.support.admissions import (
     DEFAULT_LEASE_SECONDS,
     MAX_OBSERVATION_AGE,

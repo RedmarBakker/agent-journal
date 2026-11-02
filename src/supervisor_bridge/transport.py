@@ -8,6 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
+from journal.features.supervisor.capability_catalogue import ROW_EVENTS
 from supervisor_bridge.contracts import (
     ROUTES,
     EVENT_WAKE_KINDS,
@@ -18,9 +19,6 @@ from supervisor_bridge.contracts import (
     positive_integer,
     strict_object,
 )
-from supervisor_bridge.hints import ROW_EVENTS
-
-
 REQUEST_TIMEOUT_SECONDS = 20
 RESPONSE_MAX_BYTES = 1_048_576
 SERVICE_ERROR_RESPONSE_MAX_BYTES = 4096

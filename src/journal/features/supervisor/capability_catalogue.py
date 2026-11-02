@@ -1,4 +1,9 @@
 CAPABILITY_TIERS = frozenset(("read", "tier 1", "tier 2", "tier 3", "never"))
+ROW_EVENTS = frozenset(
+    f"{table}.{event}"
+    for table in ("plans", "phases", "tasks", "checks")
+    for event in ("created", "updated", "deleted")
+)
 
 CAPABILITY_CATALOGUE = {
     "Plans and tasks": {

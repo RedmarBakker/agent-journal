@@ -1,7 +1,6 @@
 from typing import Any
 
-from supervisor_bridge.hints import ROW_EVENTS
-
+from journal.features.supervisor.capability_catalogue import ROW_EVENTS
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.features.supervisor.support.admissions import supervisor_key
 from journal.models.entry import Entry

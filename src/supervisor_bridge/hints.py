@@ -5,15 +5,11 @@ import os
 import tempfile
 from pathlib import Path
 
+from journal.features.supervisor.capability_catalogue import ROW_EVENTS
 
 MAX_HINTS = 256
 MAX_BATCH = 100
 MAX_HINT_FILE_BYTES = 131072
-ROW_EVENTS = frozenset(
-    f"{table}.{event}"
-    for table in ("plans", "phases", "tasks", "checks")
-    for event in ("created", "updated", "deleted")
-)
 
 
 class HintError(ValueError):

@@ -3,6 +3,7 @@ import re
 import uuid
 from typing import Protocol
 
+from journal.features.supervisor.capability_catalogue import ROW_EVENTS
 from supervisor_bridge.contracts import (
     ContractError,
     RunReference,
@@ -14,7 +15,6 @@ from supervisor_bridge.contracts import (
     validate_operation,
 )
 from supervisor_bridge.metering import grant_token_limits
-from supervisor_bridge.hints import ROW_EVENTS
 from supervisor_bridge.state import StateError, StateStore
 from supervisor_bridge.transport import (
     AuthorizationError,
