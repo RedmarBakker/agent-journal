@@ -1454,6 +1454,7 @@ shell.outputs_kept = 250
 shell.reader_suggestions = 3
 shell.reader_suggestion_runs = 50
 reviewing.reviewer = False  (the user sets it)
+secrets.longest_run_seconds = 120  (the user sets it)
 sharing.host = ''  (the user sets it)
 reports.update_every = 60
 docs.revision_window = 30
