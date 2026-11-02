@@ -332,6 +332,16 @@ def validate_pinned_fixture(fixture: dict) -> None:
             "maxTokens": 8000,
             "timeoutSeconds": 180,
         }}},
+        "gateway": {"mode": "local", "bind": "lan", "auth": {"mode": "token"}},
+        "plugins": {
+            "enabled": True,
+            "allow": ["anthropic"],
+            "deny": ["memory-core"],
+            "entries": {"memory-core": {
+                "enabled": False,
+                "config": {"dreaming": {"enabled": False}},
+            }},
+        },
         "agents": {
             "entries": {"supervisor": {
                 "name": "Journal plan maintenance",

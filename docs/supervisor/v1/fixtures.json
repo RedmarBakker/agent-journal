@@ -34,6 +34,32 @@
         }
       }
     },
+    "gateway": {
+      "mode": "local",
+      "bind": "lan",
+      "auth": {
+        "mode": "token"
+      }
+    },
+    "plugins": {
+      "enabled": true,
+      "allow": [
+        "anthropic"
+      ],
+      "deny": [
+        "memory-core"
+      ],
+      "entries": {
+        "memory-core": {
+          "enabled": false,
+          "config": {
+            "dreaming": {
+              "enabled": false
+            }
+          }
+        }
+      }
+    },
     "agents": {
       "entries": {
         "supervisor": {

@@ -188,13 +188,14 @@ static bool contains_all(const char *text, const char *const *needles, size_t co
 
 static int valid_profile(const char *config_path) {
     static const char *required_config[] = {
+        "\"gateway\":{\"mode\":\"local\",\"bind\":\"lan\",\"auth\":{\"mode\":\"token\"}}",
+        "\"plugins\":{\"enabled\":true,\"allow\":[\"anthropic\"],\"deny\":[\"memory-core\"],\"entries\":{\"memory-core\":{\"enabled\":false,\"config\":{\"dreaming\":{\"enabled\":false}}}}}",
         "\"allowRequestSessionKey\":false",
         "\"allowedAgentIds\":[\"supervisor\"]",
         "\"allow\":[\"anthropic/claude-sonnet-5\"]",
         "\"id\":\"openclaw\"",
         "\"hooks\":{\"enabled\":true",
-        "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true",
-        "\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-bridge\"",
+        "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true,\"transport\":\"stdio\",\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-bridge\",\"args\":[\"mcp\"],\"connectionTimeoutMs\":5000,\"requestTimeoutMs\":20000,\"supportsParallelToolCalls\":false,\"toolFilter\":{\"include\":[\"journal_supervisor.observe\",\"journal_supervisor.apply_maintenance\",\"journal_supervisor.receipt\"]}}}}",
         "\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}",
         "journal__journal_supervisor-observe",
         "journal__journal_supervisor-apply_maintenance",
@@ -242,8 +243,9 @@ static int valid_profile(const char *config_path) {
         "\"cap_add\": [\"SETUID\", \"SETGID\", \"SETPCAP\"]",
     };
     static const char *required_gateway_entrypoint[] = {
+        "OPENCLAW_GATEWAY_TOKEN=$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')",
         "JOURNAL_SUPERVISOR_TLS_CA_FILE",
-        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE",
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE",
     };
     static const char *required_supervisor_handler[] = {
         "SERVICE_PATHS",

@@ -751,6 +751,18 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["runtime"]["version"] == "v2026.10.8"
     assert contract_fixture["openclaw_pin"]["version"] == fixture["runtime"]["version"].removeprefix("v")
     assert contract_fixture["openclaw_pin"]["commit"] == fixture["runtime"]["source_commit"]
+    assert contract_fixture["openclaw_config"]["gateway"] == {
+        "mode": "local", "bind": "lan", "auth": {"mode": "token"}
+    }
+    assert contract_fixture["openclaw_config"]["plugins"]["allow"] == ["anthropic"]
+    assert contract_fixture["openclaw_config"]["plugins"]["deny"] == ["memory-core"]
+    assert contract_fixture["openclaw_config"]["plugins"]["entries"]["memory-core"] == {
+        "enabled": False,
+        "config": {"dreaming": {"enabled": False}},
+    }
+    assert list(contract_fixture["openclaw_config"]["mcp"]["servers"]) == ["journal"]
+    assert contract_fixture["openclaw_config"]["mcp"]["servers"]["journal"]["enabled"] is False
+    assert "OPENCLAW_GATEWAY_TOKEN" not in json.dumps(contract_fixture)
     assert fixture["agent"]["model"] == "anthropic/claude-sonnet-5"
     assert fixture["agent"]["thinking_default"] == "high"
     assert fixture["provider"] == {
@@ -764,6 +776,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["hooks"]["enabled"] is False
     assert fixture["network"] == {"bind": "lan", "port": 18789, "host_published": False}
     assert fixture["reconciliation_job"]["enabled"] is False
+    assert contract_fixture["cron_add_params"]["enabled"] is False
     assert fixture["enrollment"]["enabled"] is False
     assert fixture["tools"]["wildcards"] is False
     assert len(fixture["tools"]["allowlist"]) == 3
@@ -776,12 +789,17 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert "JOURNAL_SUPERVISOR_ADMISSION_URL" in entrypoint
     assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN" in entrypoint
     assert "JOURNAL_SUPERVISOR_TLS_CA_FILE" in entrypoint
+    assert 'OPENCLAW_GATEWAY_TOKEN=$(node -e \'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))\')' in entrypoint
+    assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN" in entrypoint
     assert "JOURNAL_SUPERVISOR_CREDENTIAL" not in entrypoint
     launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
     assert '"writer_supervisor_tls_cert"' in launcher
     assert '"writer_supervisor_tls_key"' in launcher
     assert '"writer_supervisor_tls_ca"' in launcher
     assert r'\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}' in launcher
+    assert r'\"gateway\":{\"mode\":\"local\",\"bind\":\"lan\",\"auth\":{\"mode\":\"token\"}}' in launcher
+    assert r'\"plugins\":{\"enabled\":true,\"allow\":[\"anthropic\"],\"deny\":[\"memory-core\"]' in launcher
+    assert r'\"dreaming\":{\"enabled\":false}' in launcher
     assert '!strstr(compact, "\\\"default\\\":")' in launcher
 
 

@@ -512,13 +512,28 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     assert PINNED_OPENCLAW_VERSION == "2026.10.8"
     assert PINNED_OPENCLAW_COMMIT.startswith("dc2523e")
     assert "default" not in supervisor
+    assert fixture["openclaw_config"]["gateway"] == {
+        "mode": "local", "bind": "lan", "auth": {"mode": "token"}
+    }
+    assert fixture["openclaw_config"]["plugins"] == {
+        "enabled": True,
+        "allow": ["anthropic"],
+        "deny": ["memory-core"],
+        "entries": {"memory-core": {
+            "enabled": False,
+            "config": {"dreaming": {"enabled": False}},
+        }},
+    }
     assert fixture["openclaw_config"]["agents"]["defaults"]["model"] == {
         "primary": "anthropic/claude-sonnet-5"
     }
     assert fixture["cron_add_params"]["payload"]["argv"] == [
         "/opt/journal-supervisor/bin/journal-supervisor-bridge", "reconcile"
     ]
+    assert fixture["cron_add_params"]["enabled"] is False
     assert fixture["openclaw_config"]["mcp"]["servers"]["journal"]["args"] == ["mcp"]
+    assert fixture["openclaw_config"]["mcp"]["servers"]["journal"]["enabled"] is False
+    assert list(fixture["openclaw_config"]["mcp"]["servers"]) == ["journal"]
     assert fixture["openclaw_config"]["tools"]["allow"] == list(OPENCLAW_TOOL_NAMES)
     assert effective_tool_inventory(fixture, set()) == []
     assert effective_tool_inventory(fixture, {"journal__journal_supervisor-observe", "shell", "browser"}) == [
@@ -542,6 +557,11 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     implicit_model["openclaw_config"]["agents"]["defaults"].pop("model")
     with pytest.raises(ContractError):
         validate_pinned_fixture(implicit_model)
+
+    broad_plugins = json.loads(json.dumps(fixture))
+    broad_plugins["openclaw_config"]["plugins"]["allow"].append("browser")
+    with pytest.raises(ContractError):
+        validate_pinned_fixture(broad_plugins)
 
 
 def test_unverified_aggregate_budget_never_invokes_hook(tmp_path):

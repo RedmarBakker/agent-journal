@@ -182,9 +182,11 @@ def staging_root(tmp_path):
     config = work / "docs/supervisor/v1/openclaw-live.json"
     config.write_text(json.dumps({
         "models": {"providers": {"anthropic": {"baseUrl": "http://127.0.0.1:17840", "api": "anthropic-messages", "maxTokens": 8000}}},
+        "gateway": {"mode": "local", "bind": "lan", "auth": {"mode": "token"}},
+        "plugins": {"enabled": True, "allow": ["anthropic"], "deny": ["memory-core"], "entries": {"memory-core": {"enabled": False, "config": {"dreaming": {"enabled": False}}}}},
         "agents": {"entries": {"supervisor": {"model": {"primary": "anthropic/claude-sonnet-5", "fallbacks": []}, "modelPolicy": {"allow": ["anthropic/claude-sonnet-5"]}, "thinkingDefault": "high", "models": {"anthropic/claude-sonnet-5": {"agentRuntime": {"id": "openclaw"}}}}}, "defaults": {"model": {"primary": "anthropic/claude-sonnet-5"}}},
         "hooks": {"enabled": True, "allowedAgentIds": ["supervisor"], "allowRequestSessionKey": False},
-        "mcp": {"servers": {"journal": {"enabled": True, "command": "/opt/journal-supervisor/bin/journal-supervisor-bridge", "args": ["mcp"]}}},
+        "mcp": {"servers": {"journal": {"enabled": True, "transport": "stdio", "command": "/opt/journal-supervisor/bin/journal-supervisor-bridge", "args": ["mcp"], "connectionTimeoutMs": 5000, "requestTimeoutMs": 20000, "supportsParallelToolCalls": False, "toolFilter": {"include": ["journal_supervisor.observe", "journal_supervisor.apply_maintenance", "journal_supervisor.receipt"]}}}},
         "cron_add_params": {"name": "journal-supervisor-reconcile-v1", "agentId": "supervisor", "schedule": {"everyMs": 300000}, "sessionTarget": "isolated", "wakeMode": "now", "delivery": {"mode": "none"}},
         "hook_agent_request": {"deliver": False, "thinking": "high", "model": "anthropic/claude-sonnet-5", "timeoutSeconds": 180},
         "tools": {"allow": ["journal__journal_supervisor-observe", "journal__journal_supervisor-apply_maintenance", "journal__journal_supervisor-receipt"]},
@@ -199,7 +201,8 @@ def staging_root(tmp_path):
         (secrets / name).chmod(0o600)
     (work / "docs/supervisor/v1/gateway-entrypoint.sh").write_text(
         "JOURNAL_SUPERVISOR_TLS_CA_FILE\n"
-        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL "
+        "OPENCLAW_GATEWAY_TOKEN=$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')\n"
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL "
         "JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE\n"
     )
     handler = work / "src/journal/http/supervisor_handler.py"
@@ -301,6 +304,28 @@ def test_launcher_refuses_a_direct_provider_route_or_model_fallback(compiled_lau
 
     assert direct_route.returncode != 0
     assert fallback_route.returncode != 0
+    assert not (home / "docker-calls").exists()
+
+
+def test_launcher_refuses_extra_plugins_or_mcp_servers(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    config = work / "docs/supervisor/v1/openclaw-live.json"
+    original = json.loads(config.read_text())
+
+    expanded_plugins = json.loads(json.dumps(original))
+    expanded_plugins["plugins"]["allow"].append("browser")
+    config.write_text(json.dumps(expanded_plugins))
+    plugin_result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    expanded_servers = json.loads(json.dumps(original))
+    expanded_servers["mcp"]["servers"]["extra"] = {"enabled": True}
+    config.write_text(json.dumps(expanded_servers))
+    server_result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert plugin_result.returncode != 0
+    assert server_result.returncode != 0
     assert not (home / "docker-calls").exists()
 
 
