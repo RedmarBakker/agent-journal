@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 
+from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -21,7 +22,7 @@ class LeadingPlan(PlansReady):
     def keeps_floor(cls) -> bool:
         return True
 
-    def reset_states(self, _states) -> tuple["LeadingPlan", ...]:
+    def reset_states(self, _states: tuple[BaseState, ...]) -> tuple[BaseState, ...]:
         return (self.restored({"plan_id": self.plan_id}),)
 
     def subject(self) -> str:

@@ -30,9 +30,11 @@ def test_a_plan_agents_floor_keeps_its_plan_after_its_session_starts(story):
 @story(SoloPlanAgentTaskStarted, subject=AgentRole.MAIN)
 def test_a_plan_agents_floor_keeps_its_plan_after_it_takes_its_first_task(story):
     agent = plan_agent()
-    result = story.agent_in_runs(agent, f"plan-{story.plans.first}", PLAN_AGENT_SESSION, f"task show {story.tasks.first}")
+    plan, task = story.plans.first, story.tasks.first
+    result = story.agent_in_runs(agent, f"plan-{plan}", PLAN_AGENT_SESSION, f"task show {task}")
     result.expect_command_passed()
-    story.expect_state_data(agent, LeadingPlan, plan_id=story.plans.first)
+    story.expect_state_data(agent, LeadingPlan, plan_id=plan)
+    story.expect_state_data(agent, FollowingPlan, plan_id=plan, task_id=task)
     story.expect_stack(story.agents.main, CoordinatingPlans, FollowingPlan)
 
 
