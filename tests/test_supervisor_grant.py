@@ -28,6 +28,7 @@ def grant_data(**changes):
         "event_wakeups": ["failed_check", "stalled_task"],
         "limits": dict.fromkeys(BUDGET_FIELDS, 1),
         "valid_until_ms": 1000,
+        "paused": False,
         "revoked": False,
     }
     data.update(changes)
@@ -35,7 +36,7 @@ def grant_data(**changes):
 
 
 def test_a_grant_stores_environment_scope_plans_capabilities_wakes_limits_and_lifetime():
-    value = grant_data(watched_plans=[4, 9], wake_interval_minutes=60, revoked=True)
+    value = grant_data(watched_plans=[4, 9], wake_interval_minutes=60, paused=True, revoked=True)
 
     grant = SupervisorGrant.parsed(value, CATALOGUE)
 
@@ -145,3 +146,24 @@ def test_a_database_migration_converts_each_version_one_grant_in_a_shared_enviro
         "check edit": {"on": True, "mode": "act"},
     }, "the bounded write grant keeps its mode on each migrated capability"
     assert all(grant["grant_v2"]["limits"] == limits for grant in migrated), "the migration preserves every limit, including the daily cost cap"
+
+
+def test_existing_version_two_grants_start_unpaused_after_the_pause_field_migration(connection):
+    from journal.db.migrations.supervisor_grant_pause import SupervisorGrantPause
+
+    grants = [
+        {"grant_id": "before-pause-field", "grant_v2": {"environment_id": 12, "valid_until_ms": 1000}},
+        {"grant_id": "already-paused", "grant_v2": {"environment_id": 12, "paused": True}},
+    ]
+    for index, data in enumerate(grants):
+        connection.execute(
+            "INSERT INTO entries (environment_id, entry_type, data, idempotency) VALUES (?, ?, ?, ?)",
+            (12, "SupervisorGrant", json.dumps(data), str(index)),
+        )
+
+    SupervisorGrantPause().apply(connection)
+
+    migrated = [json.loads(row["data"]) for row in connection.all(
+        "SELECT data FROM entries WHERE entry_type = 'SupervisorGrant' ORDER BY id"
+    )]
+    assert [grant["grant_v2"]["paused"] for grant in migrated] == [False, True], "the migration enables existing grants but keeps an existing pause"

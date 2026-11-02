@@ -135,13 +135,19 @@ class SupervisorAuthority:
                     raise SupervisorFailure(409, "the supervisor grant is already revoked")
 
                 next_version = current["grant_version"] + 1
-                old_name = entry.data.get("_credential_name", "")
-                if request["change"]["kind"] == "revoke":
+                kind = request["change"]["kind"]
+                if kind == "revoke":
+                    old_name = entry.data.get("_credential_name", "")
                     grant = {**current, "grant_version": next_version, "mode": "disabled", "revoked": True}
                     stored = entry.data.get("grant_v2")
                     grant_v2 = {**stored, "revoked": True} if isinstance(stored, dict) else SupervisorGrant.from_version_one(current).with_revoked().data()
                     self._append_grant(grant, "", "", {**entry.data, "grant_v2": grant_v2}, actor)
+                elif kind == "off":
+                    grant = self._turn_off(entry, current, next_version, actor)
+                elif kind == "on":
+                    grant = self._turn_on(entry, current, owner_id, next_version, actor)
                 else:
+                    old_name = entry.data.get("_credential_name", "")
                     replacement = self._enrollment(request["change"]["enrollment"])
                     if replacement["valid_until_ms"] <= self._now_ms():
                         raise SupervisorFailure(400, "the enrollment expiry must be in the future")
@@ -172,6 +178,31 @@ class SupervisorAuthority:
         if old_name:
             self.secrets_store.drop([old_name])
         return grant, token
+
+    def _turn_off(self, entry: Entry, current: dict[str, Any], version: int, actor: Actor) -> dict[str, Any]:
+        grant_v2 = self._grant_v2(entry, current)
+        if grant_v2.get("paused") is True:
+            raise SupervisorFailure(409, "the supervisor grant is already paused")
+        return self._append_pause(entry, current, version, {**grant_v2, "paused": True}, actor)
+
+    def _turn_on(self, entry: Entry, current: dict[str, Any], owner_id: int, version: int, actor: Actor) -> dict[str, Any]:
+        if not self.installation_accepts_management(owner_id):
+            raise SupervisorFailure(409, "the supervisor installation gate is closed")
+        grant_v2 = self._grant_v2(entry, current)
+        if grant_v2.get("paused") is not True:
+            raise SupervisorFailure(409, "the supervisor grant is not paused")
+        return self._append_pause(entry, current, version, {**grant_v2, "paused": False}, actor)
+
+    def _append_pause(self, entry: Entry, current: dict[str, Any], version: int, grant_v2: dict, actor: Actor) -> dict[str, Any]:
+        grant = {**current, "grant_version": version}
+        prior = {**entry.data, "grant_v2": grant_v2}
+        self._append_grant(grant, entry.data.get("_credential_sha256", ""), entry.data.get("_credential_name", ""), prior, actor)
+        return grant
+
+    @staticmethod
+    def _grant_v2(entry: Entry, current: dict[str, Any]) -> dict:
+        stored = entry.data.get("grant_v2")
+        return stored if isinstance(stored, dict) else SupervisorGrant.from_version_one(current).data()
 
     def restore_installation(self, actor: Actor, grant_id: str) -> Entry:
         with self.scope.environment(PROJECT), self.entries.writing():
@@ -296,6 +327,8 @@ class SupervisorAuthority:
                 or grant["scope"] != principal.scope or grant["revoked"] or grant["mode"] == "disabled"
                 or grant["valid_until_ms"] <= self._now_ms() or not entry.data.get("_credential_sha256")):
             raise SupervisorFailure(403, "the supervisor grant is no longer current")
+        if isinstance(entry.data.get("grant_v2"), dict) and entry.data["grant_v2"].get("paused") is True:
+            raise SupervisorFailure(403, "the supervisor grant is paused")
         if plan_id is not None and plan_id != grant["plan_id"]:
             raise SupervisorFailure(403, "the supervisor grant does not cover that reference")
         if installation := self._latest_installation(grant["scope"]["tenant_id"]):
@@ -325,6 +358,8 @@ class SupervisorAuthority:
             grant = self._public_grant(entry)
             if (grant["revoked"] or grant["mode"] == "disabled" or grant["valid_until_ms"] <= self._now_ms()
                     or not entry.data.get("_credential_sha256")):
+                continue
+            if isinstance(entry.data.get("grant_v2"), dict) and entry.data["grant_v2"].get("paused") is True:
                 continue
             if not self.installation_accepts_management(grant["owner_user_id"]):
                 continue
@@ -930,9 +965,9 @@ class SupervisorAuthority:
         grant_id = cls._string(body["grant_id"], 256)
         cls._integer(body["expected_grant_version"], 1)
         change = body["change"]
-        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace"):
+        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on"):
             raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
-        if change["kind"] == "revoke":
+        if change["kind"] in ("revoke", "off", "on"):
             change = cls._object(change, {"kind"})
         else:
             if not isinstance(change, dict) or set(change) not in ({"kind", "enrollment"}, {"kind", "enrollment", "restore_review"}):

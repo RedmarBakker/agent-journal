@@ -240,6 +240,12 @@ class UserSteps:
         connection.close()
         return self.observed(f"the Gateway posts to {route} on its supervisor listener without a service token", None, None)
 
+    def supervisor_posts(self, route: str, body: dict) -> StepResult:
+        self.viewer_status, self.viewer_answer = posted(
+            self.app, route, body, {"X-Journal-Supervisor-Token": self.supervisor_credential},
+        )
+        return self.observed(f"the supervisor posts to {route}", None, None)
+
     def gateway_listener_started(self) -> None:
         if getattr(self, "gateway_listener_address", None):
             return

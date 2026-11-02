@@ -285,7 +285,7 @@ def test_enrollment_stores_the_version_two_environment_grant(app, authority_fixt
     }, "the version 1 capabilities convert with their original mode"
     assert stored["wake_interval_minutes"] == 15 and stored["event_wakeups"] == ["failed_check"], "migration stores scheduled and event wake settings"
     assert stored["limits"] == grant["limits"] and "daily_cost_usd" not in stored["limits"], "migration keeps the one daily cost limit"
-    assert stored["valid_until_ms"] == grant["valid_until_ms"] and stored["revoked"] is False, "migration preserves grant lifetime and state"
+    assert stored["valid_until_ms"] == grant["valid_until_ms"] and stored["paused"] is False and stored["revoked"] is False, "enrollment preserves grant lifetime and starts unpaused"
 
 
 def test_enrollment_enforces_the_eighty_thousand_input_token_bound(app, authority_fixture):

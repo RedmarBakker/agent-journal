@@ -27,13 +27,14 @@ class SupervisorGrant:
     event_wakeups: tuple[str, ...]
     limits: tuple[tuple[str, int], ...]
     valid_until_ms: int
+    paused: bool
     revoked: bool
 
     @classmethod
     def parsed(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
         data = cls._object(value, {
             "owner_user_id", "environment_id", "watched_plans", "capabilities", "wake_interval_minutes",
-            "event_wakeups", "limits", "valid_until_ms", "revoked",
+            "event_wakeups", "limits", "valid_until_ms", "paused", "revoked",
         })
         owner = cls._integer(data["owner_user_id"], 1)
         environment = cls._integer(data["environment_id"], 1)
@@ -45,9 +46,11 @@ class SupervisorGrant:
         events = cls._events(data["event_wakeups"])
         limits = cls._limits(data["limits"])
         valid_until = cls._integer(data["valid_until_ms"], 1)
+        if type(data["paused"]) is not bool:
+            raise ValueError("the supervisor grant paused field must be on or off")
         if type(data["revoked"]) is not bool:
             raise ValueError("the supervisor grant revoked field must be on or off")
-        return cls(owner, environment, plans, capabilities, interval, events, limits, valid_until, data["revoked"])
+        return cls(owner, environment, plans, capabilities, interval, events, limits, valid_until, data["paused"], data["revoked"])
 
     @classmethod
     def from_version_one(cls, grant: dict) -> "SupervisorGrant":
@@ -59,7 +62,7 @@ class SupervisorGrant:
         return cls(
             cls._integer(grant["owner_user_id"], 1), cls._integer(grant["driver_environment_id"], 1),
             cls._plans([grant["plan_id"]]), capabilities, 15, cls._events(["failed_check"]),
-            cls._limits(grant["limits"]), cls._integer(grant["valid_until_ms"], 1), cls._boolean(grant["revoked"]),
+            cls._limits(grant["limits"]), cls._integer(grant["valid_until_ms"], 1), False, cls._boolean(grant["revoked"]),
         )
 
     def data(self) -> dict:
@@ -72,12 +75,14 @@ class SupervisorGrant:
             "event_wakeups": list(self.event_wakeups),
             "limits": dict(self.limits),
             "valid_until_ms": self.valid_until_ms,
+            "paused": self.paused,
             "revoked": self.revoked,
         }
 
     def with_revoked(self) -> "SupervisorGrant":
         return SupervisorGrant(self.owner_user_id, self.environment_id, self.watched_plans, self.capabilities,
-                               self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms, True)
+                               self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
+                               self.paused, True)
 
     @classmethod
     def _capabilities(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> tuple[tuple[str, bool, str], ...]:

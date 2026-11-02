@@ -628,6 +628,14 @@ class StoryChecks:
         grant = authority.revalidate(principal)
         assert grant["plan_id"] == plan_id, f"the supervisor grant covers plan {grant['plan_id']}, not plan {plan_id}"
 
+    def expect_supervisor_grant_state(self, grant_id: str, paused: bool, revoked: bool) -> None:
+        entry = self.app.container.get(SupervisorAuthority)._latest_entry(grant_id)
+        grant = entry.data.get("grant_v2", {}) if entry else {}
+        assert grant.get("paused") is paused and grant.get("revoked") is revoked, (
+            f"supervisor grant {grant_id} has pause {grant.get('paused')} and revoke {grant.get('revoked')}, "
+            f"not pause {paused} and revoke {revoked}"
+        )
+
     def expect_row_absent(self, table: str, n: int) -> None:
         rows = get_answer(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]
         assert not rows, f"{table} {n} is still listed through the API: {rows[0]}"
