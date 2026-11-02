@@ -46,7 +46,7 @@ compose exec --user 10003:10003 -T writer /usr/local/bin/supervisor-codex-ready
 STAGING_DIR=$(mktemp -d "$SECRET_SOURCE_DIR/.supervisor-setup.XXXXXX")
 chmod 0700 "$STAGING_DIR"
 trap 'rm -rf "$STAGING_DIR"' EXIT HUP INT TERM
-compose exec --user 10001:10001 -T writer /usr/local/bin/supervisor-live-setup
+compose exec --user journal -T writer /usr/local/bin/supervisor-live-setup
 compose cp writer:/run/journal_supervisor_credential "$STAGING_DIR/journal_supervisor_credential"
 python3 - "$STAGING_DIR/journal_supervisor_credential" <<'PY'
 import re

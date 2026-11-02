@@ -490,7 +490,7 @@ def test_live_setup_checks_driver_login_as_uid10003_before_owner_setup():
     setup = (PROFILE / "live-smoke-setup.py").read_text()
     host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
     driver_check = "compose exec --user 10003:10003 -T writer /usr/local/bin/supervisor-codex-ready"
-    owner_setup = "compose exec --user 10001:10001 -T writer /usr/local/bin/supervisor-live-setup"
+    owner_setup = "compose exec --user journal -T writer /usr/local/bin/supervisor-live-setup"
 
     assert "/var/lib/journal-codex" not in setup and "auth.json" not in setup and "CODEX_HOME" not in setup
     assert "os.geteuid()" not in setup and ".stat()" not in setup
