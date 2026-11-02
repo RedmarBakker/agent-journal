@@ -238,21 +238,29 @@ from journal.config import Config
 from journal.models.plan_mode import PlanMode
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.plans_options import PlansOptions
+from journal.features.organization.support.organization import Organization
 from tests.lab.business_type import BusinessType
 from tests.lab.lab_scenario import LabScenario
-from tests.lab.organization_builder import OrganizationBuilder
 from tests.lab.scenario_loader import ScenarioLoader
 from tests.user_settings import user_set
 app = App(Config.rooted(project))
-business_type = scenario_path.parent.parent.parent / "business_types" / f"{scenario_path.parent.name}.toml"
+business_type = harness / "tests" / "lab" / "business_types" / f"{scenario_path.parent.name}.toml"
 business = BusinessType.read(business_type)
-OrganizationBuilder().build(business, organization)
 user_set(app, OrganizationOptions.FOLDER.key, str(organization))
 user_set(app, PlansOptions.PLAN_AGENTS.key, True)
 for key, value in settings.items():
     user_set(app, key, value)
 scenario = LabScenario.read(scenario_path)
-plan = ScenarioLoader(app).load(scenario, PlanMode.ORGANIZATION)
+domain_map = business.organization_domain_map
+contracts = app.container.get(Organization).contracts()
+scenario_domains = {task["domain"] for phase in scenario.phases for task in phase["tasks"]}
+for scenario_domain in scenario_domains:
+    organization_domain = domain_map.get(scenario_domain)
+    if not organization_domain:
+        raise ValueError(f"scenario domain {scenario_domain!r} has no pinned organization mapping")
+    if contracts.domain(organization_domain) is None:
+        raise ValueError(f"scenario domain {scenario_domain!r} maps to {organization_domain!r}, absent from pinned organization")
+plan = ScenarioLoader(app).load(scenario, PlanMode.ORGANIZATION, domain_map)
 print(plan["plan_id"])
 '''
         design = self.manifest.data().get("design", {})

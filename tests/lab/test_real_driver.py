@@ -21,10 +21,12 @@ from tests.lab.real.provider_proxy import ProviderProxy
 from tests.lab.real.run_caps import RunCaps
 from tests.lab.real.run_record import RunRecord
 from tests.lab.real.run_record_store import RunRecordStore
+from tests.lab.business_type import BusinessType
 from tests.lab.lab_scenario import LabScenario
 
 
 PINNED_BATCH_JOURNAL_COMMIT = "74d5a705f258e5ea8241c4f65125ed100b23d14e"
+PINNED_BATCH_ORGANIZATION_COMMIT = "d53649b71ad1c0faf536d6299ec95de159ed6c4f"
 BATCH_SCENARIOS = (
     ("software_company", "production_incident", "claude"),
     ("accountancy_firm", "payroll_tax_change", "codex"),
@@ -373,9 +375,6 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
                  "xdg_config", "xdg_cache", "bin"):
         paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     checkout = Path(__file__).resolve().parents[2]
-    ProductionDriver.git_snapshot(checkout, paths["project"], PINNED_BATCH_JOURNAL_COMMIT)
-    pinned_loader = paths["project"] / "tests" / "lab" / "scenario_loader.py"
-    assert "--domain" not in pinned_loader.read_text(encoding="utf-8")
 
     stand_ins = paths["runtime"] / "stand-ins"
     stand_ins.mkdir(mode=0o700)
@@ -403,10 +402,20 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         "workers.shared_role_queue_order": "plans_in_turn",
     }
     manifest = SimpleNamespace(data=lambda: {"design": {"settings": settings}})
-    spec = {"provider": provider, "business_type": business_type, "scenario": scenario_name}
-    driver = ProductionDriver("run-1", spec, manifest, checkout, tmp_path, ProductionWatchdog())
+    spec = {
+        "provider": provider, "business_type": business_type, "scenario": scenario_name,
+        "journal_commit": PINNED_BATCH_JOURNAL_COMMIT,
+        "organization_commit": PINNED_BATCH_ORGANIZATION_COMMIT,
+    }
+    organization_repository = ProductionDriver.default_organization_repository(checkout)
+    driver = ProductionDriver("run-1", spec, manifest, checkout, organization_repository, ProductionWatchdog())
     driver.executable = lambda name: executables[name]
     driver.boundary.verify("run-1", paths)
+    snapshot = driver.materialize_project(spec, paths)
+    pinned_loader = paths["project"] / "tests" / "lab" / "scenario_loader.py"
+    assert snapshot["journal_commit"] == PINNED_BATCH_JOURNAL_COMMIT
+    assert snapshot["organization_commit"] == PINNED_BATCH_ORGANIZATION_COMMIT
+    assert "--domain" not in pinned_loader.read_text(encoding="utf-8")
     shim = IsolatedJournal.install_journal_shim(paths, driver.journal_port)
 
     try:
@@ -415,15 +424,21 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         plan_id = driver.prepare_plan(scenario, paths)
         harness_loader = paths["runtime"] / "driver-harness" / "tests" / "lab" / "scenario_loader.py"
         checkout_loader = checkout / "tests" / "lab" / "scenario_loader.py"
+        business = BusinessType.read(checkout / "tests" / "lab" / "business_types" / f"{business_type}.toml")
         shown = driver.command([sys.executable, str(paths["project"] / "src" / "journal.py"),
                                 "plan", "show", plan_id], paths)
         expected = LabScenario.read(scenario["path"])
-        expected_domains = [task["domain"] for phase in expected.phases for task in phase["tasks"]]
+        expected_domains = [business.organization_domain_map[task["domain"]]
+                            for phase in expected.phases for task in phase["tasks"]]
+        pinned_organization = paths["runtime"] / "organization"
+        pinned_domains = {folder.name for folder in (pinned_organization / "domains").iterdir()
+                          if folder.is_dir() and (folder / "domain.toml").is_file()}
         actual_domains = [line.partition("domain:")[2].split()[0]
                           for line in shown.stdout.splitlines() if "domain:" in line]
 
         assert shown.returncode == 0, shown.stderr
         assert shown.stdout.splitlines()[0].startswith(f"plan {plan_id} approved:")
+        assert set(expected_domains) <= pinned_domains
         assert actual_domains == expected_domains
         assert harness_loader.read_bytes() == checkout_loader.read_bytes()
         assert len(driver.processes) == 1

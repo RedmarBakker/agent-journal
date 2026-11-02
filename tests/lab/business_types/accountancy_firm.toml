@@ -1,6 +1,11 @@
 id = "accountancy_firm"
 title = "Accountancy firm"
 
+[organization_domain_map]
+tax = "finance"
+payroll = "finance"
+client_services = "customer-success"
+
 [[domains]]
 id = "client_services"
 title = "Client services"

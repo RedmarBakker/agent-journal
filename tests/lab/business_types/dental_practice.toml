@@ -1,6 +1,11 @@
 id = "dental_practice"
 title = "Dental practice"
 
+[organization_domain_map]
+compliance = "legal"
+clinical = "security"
+patient_communication = "customer-success"
+
 [[domains]]
 id = "clinical"
 title = "Clinical care"

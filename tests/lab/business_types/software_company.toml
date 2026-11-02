@@ -1,6 +1,11 @@
 id = "software_company"
 title = "Software company"
 
+[organization_domain_map]
+customer_success = "customer-success"
+engineering = "operations"
+security = "security"
+
 [[domains]]
 id = "product"
 title = "Product"
