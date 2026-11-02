@@ -299,7 +299,16 @@
     "AdmissionRequest": {
       "protocol_version": 1,
       "source": "timer",
-      "observation_cursor": null
+      "observation_cursor": null,
+      "wakeup_id": "scheduled-tick-1",
+      "kind": "scheduled"
+    },
+    "WakeupRequest": {
+      "protocol_version": 1,
+      "wakeup_id": "check-event-3",
+      "kind": "checks.updated",
+      "result": "Skipped",
+      "skip_reason": "busy"
     },
     "AdmissionResult": {
       "status": "admitted",

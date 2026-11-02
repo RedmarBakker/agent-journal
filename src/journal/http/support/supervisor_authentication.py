@@ -16,6 +16,7 @@ SERVICE_PATHS = frozenset({
     "/_supervisor/v1/usage",
     "/_supervisor/v1/apply",
     "/_supervisor/v1/receipt",
+    "/_supervisor/v1/wakeups",
 })
 PRIVATE_PREFIX = "/_supervisor/"
 

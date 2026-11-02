@@ -39,7 +39,7 @@ class SupervisorActionReports:
                  "revision": task.get("revision", "")}
                 for task in context.get("tasks", []) if isinstance(task, dict) and type(task.get("id")) is int
             ],
-        }, f"supervisor:action-baseline:{data['grant_id']}:{receipt['receipt_id']}")
+        }, f"supervisor:action-baseline:{data['grant_id']}:{receipt['receipt_id']}", Actor.plugin(SUPERVISOR_ACTOR))
 
     def reconcile(self, principal: SupervisorPrincipal, action_id: str) -> dict[str, Any]:
         if principal.actor != Actor.plugin(SUPERVISOR_ACTOR):
@@ -49,7 +49,7 @@ class SupervisorActionReports:
             verification = self._reports(receipt, "verification")
             if receipt.data.get("status") == "applied" and not verification:
                 report = self._verification(receipt)
-                self._record(report, f"supervisor:action-verification:{receipt.row_id}")
+                self._record(report, f"supervisor:action-verification:{receipt.row_id}", Actor.plugin(SUPERVISOR_ACTOR))
         duplicate = receipt.data.get("status") != "applied" or bool(verification)
         return self.project(receipt, duplicate=duplicate)
 
@@ -71,9 +71,11 @@ class SupervisorActionReports:
     def project(self, receipt: Entry, duplicate: bool = True) -> dict[str, Any]:
         verification_rows = self._reports(receipt, "verification")
         rollback_rows = self._reports(receipt, "rollback")
+        owner_undo_rows = self._reports(receipt, "owner_undo")
         outcomes = self._reports(receipt, "outcome")
         verification = verification_rows[0] if verification_rows else None
         rollback = rollback_rows[0] if rollback_rows else None
+        owner_undo = owner_undo_rows[0] if owner_undo_rows else None
         data = dict(receipt.data)
         if verification:
             data["verification"] = verification.data["verification"]
@@ -97,9 +99,32 @@ class SupervisorActionReports:
             "verification": verification.data if verification else None,
             "outcome_evidence": evidence,
             "rollback": rollback.data if rollback else None,
+            "owner_undo": ({**owner_undo.data, "actor": owner_undo.actor.stamp} if owner_undo else None),
         }
         return {"status": data["status"], "reason": data["reason"], "receipt_id": receipt.row_id,
                 "data": data, "report": report, "duplicate": duplicate}
+
+    def record_owner_undo(self, receipt: Entry, plan_id: int, actor: Actor,
+                          fields: list[dict[str, Any]]) -> Entry:
+        data = receipt.data
+        return self._record({
+            "tenant_id": data["scope"]["tenant_id"], "owner_id": actor.number(),
+            "grant_id": data["grant_id"], "grant_version": data["grant_version"],
+            "plan_id": plan_id, "action_id": data["action_id"], "receipt_id": receipt.row_id,
+            "report_kind": "owner_undo", "status": "undone", "reason": "",
+            "recorded_at_ms": int(self.time_source.seconds() * 1000), "fields": fields,
+        }, f"supervisor:action-owner-undo:{receipt.row_id}", actor)
+
+    def owner_undo_counts(self, plan_id: int, actor: Actor) -> dict[str, Any]:
+        plan = self.authority._plan(plan_id)
+        self.authority._owner(actor, plan)
+        with self.scope.environment(PROJECT):
+            query = self.entries.query().filter(
+                entry_type="SupervisorActionReport", actor=actor,
+            ).filter_json("data->report_kind", "owner_undo").filter_json("data->plan_id", plan_id)
+            count = self.entries.counted(query)
+        return {"schema_version": "supervisor-owner-undos-v1", "plan_id": plan_id,
+                "counts": {"Undone by you": count}}
 
     def _verification(self, receipt: Entry) -> dict[str, Any]:
         base = receipt.data
@@ -200,7 +225,7 @@ class SupervisorActionReports:
             "outcome": outcome, "observation_id": observation.data.get("observation_id", ""),
             "observed_at_ms": observation.data["committed_at_ms"], "check_evidence": check_evidence,
             "task_evidence": task_evidence, "evidence_available": baseline is not None,
-        }, self._outcome_key(receipt, observation.data.get("observation_id", "")))
+        }, self._outcome_key(receipt, observation.data.get("observation_id", "")), Actor.plugin(SUPERVISOR_ACTOR))
 
     def _check_evidence(self, grant: dict[str, Any], observation: Entry) -> list[dict[str, Any]]:
         data = observation.data
@@ -249,8 +274,7 @@ class SupervisorActionReports:
                 "SupervisorActionReport", last=100, receipt_id=receipt.row_id, report_kind=kind,
             )
 
-    def _record(self, data: dict[str, Any], key: str) -> Entry:
-        actor = Actor.plugin(SUPERVISOR_ACTOR)
+    def _record(self, data: dict[str, Any], key: str, actor: Actor) -> Entry:
         return self.control_entries.recorded(Entry(
             environment_id=PROJECT, entry_type="SupervisorActionReport", actor=actor,
             data=data, idempotency=key,

@@ -526,6 +526,8 @@ def test_live_smoke_admits_one_turn_from_an_open_unheld_task_after_its_bound_che
         "protocol_version": 1,
         "source": "timer",
         "observation_cursor": None,
+        "wakeup_id": "wakeup-admission",
+        "kind": "scheduled",
     })
 
     assert admission["status"] == "admitted", admission
@@ -568,6 +570,7 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
     try:
         status, admitted_body = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
             "protocol_version": 1, "source": "timer", "observation_cursor": None,
+            "wakeup_id": "wakeup-http", "kind": "scheduled",
         }, token, caller_scope_headers)
         assert status == 200 and admitted_body["status"] == "admitted", admitted_body
         run = admitted_body["run"]
@@ -630,10 +633,10 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
         assert receipt["data"]["verification"] == "verified"
 
         other_tenant = seeded(app, 2)
-        _, other_token, _ = admitted(other_tenant, "bounded_write")
-        before_wrong_tenant = app.container.get(Entries).global_last_id()
+        other_grant, other_token, _ = admitted(other_tenant, "bounded_write")
         wrong_admit = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
             "protocol_version": 1, "source": "timer", "observation_cursor": None,
+            "wakeup_id": "wakeup-wrong-tenant", "kind": "scheduled",
         }, other_token, {**caller_scope_headers, "X-Journal-Env": fixture.driver_environment.name})
         wrong_observe = _post_supervisor_http(server.port, "/_supervisor/v1/observe", {
             "protocol_version": 1,
@@ -650,7 +653,13 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
         assert wrong_admit == (200, {"status": "skipped", "reason": "empty"}), wrong_admit
         for denied in (wrong_observe, wrong_apply, wrong_receipt):
             assert denied[0] == 403 and set(denied[1]) == {"error"}, denied
-        assert app.container.get(Entries).global_last_id() == before_wrong_tenant, "a different tenant cannot read or append rows for this grant"
+        entries = app.container.get(Entries)
+        with app.container.get(Scope).environment(PROJECT):
+            own_wakeup = entries.supervisor_records("SupervisorWakeup", last=1, tenant_id=grant["scope"]["tenant_id"])
+            other_wakeup = entries.supervisor_records("SupervisorWakeup", last=1, tenant_id=other_grant["scope"]["tenant_id"])
+        assert own_wakeup[0].data["wakeup_id"] == "wakeup-http"
+        assert other_wakeup[0].data["wakeup_id"] == "wakeup-wrong-tenant"
+        assert other_wakeup[0].data["grant_id"] == other_grant["grant_id"]
     finally:
         server.stop()
         if other_tenant is not None:
@@ -672,6 +681,7 @@ def test_bad_bridge_credential_over_http_changes_nothing(app, authority_fixture,
     try:
         status, body = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
             "protocol_version": 1, "source": "timer", "observation_cursor": None,
+            "wakeup_id": "wakeup-invalid-token", "kind": "scheduled",
         }, "invalid-service-token")
     finally:
         server.stop()

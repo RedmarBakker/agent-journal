@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import re
+import uuid
 from typing import Protocol
 
 from supervisor_bridge.contracts import (
@@ -13,6 +14,7 @@ from supervisor_bridge.contracts import (
     validate_operation,
 )
 from supervisor_bridge.metering import grant_token_limits
+from supervisor_bridge.hints import ROW_EVENTS
 from supervisor_bridge.state import StateError, StateStore
 from supervisor_bridge.transport import (
     AuthorizationError,
@@ -75,11 +77,15 @@ class SupervisorBridge:
         self.budget = budget or NoAggregateBudgetProof()
         self.hook = hook
 
-    def reconcile(self, source: str) -> ReconcileResult:
+    def reconcile(self, source: str, kind: str | None = None, wakeup_id: str | None = None) -> ReconcileResult:
         if source not in {"hint", "timer"}:
             raise ContractError("reconcile source is not enabled")
+        kind = kind or ("scheduled" if source == "timer" else "checks.updated")
+        if kind != "scheduled" and kind not in ROW_EVENTS or source == "timer" and kind != "scheduled" or source == "hint" and kind == "scheduled":
+            raise ContractError("reconcile kind does not match its source")
+        wakeup_id = wakeup_id or uuid.uuid4().hex
         try:
-            admission = self.client.admit(source, self.state.observation_cursor())
+            admission = self.client.admit(source, self.state.observation_cursor(), wakeup_id, kind)
         except AuthorizationError as error:
             self.state.record_failure("service_unauthorized", False, error.cause)
             return ReconcileResult("failed", "service_unauthorized")

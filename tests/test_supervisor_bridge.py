@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 from io import BytesIO
@@ -99,8 +100,8 @@ class StubJournal:
         self.observations = list(observations or [])
         self.calls = []
 
-    def admit(self, source, observation_cursor):
-        self.calls.append(("admit", source, observation_cursor))
+    def admit(self, source, observation_cursor, wakeup_id=None, kind=None):
+        self.calls.append(("admit", source, observation_cursor, wakeup_id, kind))
         if self.admissions:
             return self.admissions.pop(0)
         return {"status": "skipped", "reason": "empty"}
@@ -331,7 +332,7 @@ def test_hints_and_timer_share_one_admission(tmp_path):
     bridge.reconcile("hint")
     bridge.reconcile("timer")
 
-    assert journal.calls == [("admit", "hint", None), ("admit", "timer", None)]
+    assert [call[:3] for call in journal.calls] == [("admit", "hint", None), ("admit", "timer", None)]
 
 
 def test_hint_spool_deduplicates_and_bounds_row_references(tmp_path):
@@ -345,9 +346,43 @@ def test_hint_spool_deduplicates_and_bounds_row_references(tmp_path):
 
     references, overflow = HintSpool(tmp_path).peek_batch()
     assert len(references) == 100
-    assert references[0] == {"table": "tasks", "id": 1}
+    assert references[0] == {"kind": "tasks.created", "table": "tasks", "id": 1}
     assert overflow is True
     assert len(spool.read_locked()["references"]) == 256
+
+
+def test_hint_spool_keeps_distinct_event_kinds_for_one_row(tmp_path):
+    spool = HintSpool(tmp_path)
+    for kind in ("tasks.created", "tasks.updated"):
+        spool.enqueue_event_line(json.dumps({
+            "v": 1,
+            "event": kind,
+            "data": {"table": "tasks", "id": 1, "by": "user"},
+        }))
+
+    references, overflow = spool.peek_batch()
+
+    assert references == [
+        {"kind": "tasks.created", "table": "tasks", "id": 1},
+        {"kind": "tasks.updated", "table": "tasks", "id": 1},
+    ]
+    assert overflow is False
+
+
+def test_hint_spool_migrates_queued_rows_without_an_event_kind(tmp_path):
+    directory = tmp_path / "transport"
+    directory.mkdir()
+    key = hashlib.sha256(b"tasks:1").hexdigest()
+    (directory / "hints.json").write_text(json.dumps({
+        "references": [{"key": key, "ref": {"table": "tasks", "id": 1}}],
+        "overflow": False,
+    }))
+
+    references, overflow = HintSpool(directory).peek_batch()
+
+    assert references == [{"kind": "tasks.updated", "table": "tasks", "id": 1}]
+    assert overflow is False
+    assert HintSpool(directory).read_locked()["references"][0]["ref"]["kind"] == "tasks.updated"
 
 
 def test_plugin_hook_never_waits_for_model_or_remote_network(tmp_path, monkeypatch):
@@ -372,7 +407,7 @@ def test_plugin_hook_never_waits_for_model_or_remote_network(tmp_path, monkeypat
 
     assert response == {"v": 1, "answer": "allow"}
     references, overflow = HintSpool(tmp_path / "transport").peek_batch()
-    assert references == [{"table": "checks", "id": 3}]
+    assert references == [{"kind": "checks.updated", "table": "checks", "id": 3}]
     assert overflow is False
 
 
@@ -393,7 +428,7 @@ def test_offline_gateway_reconciliation_recovers_missed_events(tmp_path):
     })
     response = json.loads(observed["result"]["content"][0]["text"])
 
-    assert journal.calls[0] == ("admit", "timer", "journal-cursor-7")
+    assert journal.calls[0][:3] == ("admit", "timer", "journal-cursor-7")
     assert journal.calls[1][0] == "observe"
     assert journal.calls[1][1]["cursor"] is None
     assert journal.calls[2][0] == "observe"
@@ -529,13 +564,12 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
     connection = JsonHttpConnection("http://127.0.0.1:9134", "journal-service-token")
     connection.opener = opener
     client = SupervisorHttpClient(connection)
-    assert client.admit("timer", None) == {"status": "skipped", "reason": "empty"}
+    assert client.admit("timer", None, "wakeup-1", "scheduled") == {"status": "skipped", "reason": "empty"}
     assert client.settle_usage(run, usage) == settlement
     assert client.apply(apply_request) == receipt
     assert client.receipt("action-1") == receipt
     with pytest.raises(TransportError):
         connection.post("/_supervisor/v1/admin", {})
-
     hook = OpenClawHookClient("http://localhost:18789", "openclaw-hook-token")
     hook.opener = opener
     assert hook.send(RunReference.from_run(RUN)).gateway_run_id == "gateway-run-1"
@@ -553,7 +587,10 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
     hook_request_sent, hook_timeout = opener.requests[4]
     assert service_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/admit"
     assert service_request.get_header("Authorization") == "Bearer journal-service-token"
-    assert json.loads(service_request.data) == {"protocol_version": 1, "source": "timer", "observation_cursor": None}
+    assert json.loads(service_request.data) == {
+        "protocol_version": 1, "source": "timer", "observation_cursor": None,
+        "wakeup_id": "wakeup-1", "kind": "scheduled",
+    }
     assert usage_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/usage"
     assert usage_request.get_header("Authorization") == "Bearer journal-service-token"
     assert usage_request.get_header("Idempotency-key") == run.run_id
@@ -567,6 +604,23 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
     assert hook_request_sent.get_header("Authorization") == "Bearer openclaw-hook-token"
     assert hook_request_sent.get_header("Idempotency-key") == "run-1"
     assert json.loads(hook_request_sent.data) == {"run_ref": run.to_dict()}
+
+
+def test_wakeup_result_report_uses_the_authenticated_service_route():
+    opener = StubOpener([b'{"status":"recorded","wakeup_id":"wakeup-1","entry_id":25,"duplicate":false}'])
+    connection = JsonHttpConnection("http://127.0.0.1:9134", "journal-service-token")
+    connection.opener = opener
+
+    result = SupervisorHttpClient(connection).record_wakeup("wakeup-1", "scheduled", "Acted")
+
+    request, timeout = opener.requests[0]
+    assert result["status"] == "recorded"
+    assert request.full_url == "http://127.0.0.1:9134/_supervisor/v1/wakeups"
+    assert request.get_header("Authorization") == "Bearer journal-service-token"
+    assert json.loads(request.data) == {
+        "protocol_version": 1, "wakeup_id": "wakeup-1", "kind": "scheduled", "result": "Acted", "skip_reason": "",
+    }
+    assert timeout == 20
 
 
 def test_pinned_command_and_tool_config_match_contract(tmp_path):

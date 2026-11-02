@@ -1,5 +1,6 @@
 from typing import Any
 
+from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
 from journal.features.supervisor.support.admissions import (
     action_receipt_key,
     action_reuse_key,
@@ -10,10 +11,12 @@ from journal.features.supervisor.support.admissions import (
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.features.supervisor.support.supervisor_work_available import SupervisorWorkAvailable
+from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
 from journal.features.supervisor.support.diagnostic_eligibility import eligible_diagnostic
 from journal.models.entry import Entry
 from journal.models.phase import Phase
 from journal.models.plan import Plan
+from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.template import Template
 from journal.repositories.checks import Checks
@@ -35,6 +38,11 @@ OPERATION_FIELDS = {
     "diagnostic_task": frozenset({"kind", "plan_id", "phase_id", "template_id", "template_revision", "evidence_ids"}),
     "check_interval": frozenset({"kind", "check_id", "interval_minutes"}),
 }
+OPERATION_COMMANDS = {
+    "plan_priorities": ("Plans and tasks", "plan", "priorities"),
+    "diagnostic_task": ("Plans and tasks", "task", "create"),
+    "check_interval": ("Checks", "check", "edit"),
+}
 
 
 def diagnostic_task_values(template: Template) -> tuple[str, str]:
@@ -49,18 +57,21 @@ class SupervisorMaintenance:
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations, entries: Entries,
                  control_entries: SupervisorEntries, plans: Plans, tasks: Tasks, links: Links, checks: Checks,
                  scope: Scope, time_source: TimeSource, work_available: SupervisorWorkAvailable,
-                 action_reports: SupervisorActionReports) -> None:
+                 action_reports: SupervisorActionReports, wakeups: SupervisorWakeups) -> None:
         self.authority, self.observations, self.entries = authority, observations, entries
         self.control_entries, self.plans, self.tasks, self.links, self.checks = control_entries, plans, tasks, links, checks
         self.scope, self.time_source = scope, time_source
         self.work_available = work_available
         self.action_reports = action_reports
+        self.wakeups = wakeups
 
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
         self._service_actor(principal)
         self._apply_request(principal, request)
-        return self.reconcile_receipt(principal, request["action_id"])
+        receipt = self.reconcile_receipt(principal, request["action_id"])
+        self.wakeups.record_run(principal, request["run_id"], receipt["status"])
+        return receipt
 
     def settle_usage(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._usage_settlement_request(body)
@@ -191,7 +202,9 @@ class SupervisorMaintenance:
                 results.append({"status": "needs_owner", "reason": conflict})
             else:
                 for change in receipt.data.get("changes", []):
-                    results.append(self._rollback_change(grant, context, change))
+                    results.append(self._rollback_change(
+                        grant, context, change, Actor.plugin(SUPERVISOR_ACTOR),
+                    ))
             needs_owner = any(result["status"] == "owner_edit_preserved" for result in results)
             status = "needs_owner" if needs_owner or conflict else "rolled_back"
             report_data = {
@@ -213,33 +226,158 @@ class SupervisorMaintenance:
             ), Actor.plugin(SUPERVISOR_ACTOR))
         return self.action_reports.project(receipt)
 
-    def _rollback_change(self, grant: dict[str, Any], context: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
+    def undo_owner(self, plan_id: int, receipt_id: int, actor: Actor) -> dict[str, Any]:
+        with self.scope.environment(PROJECT), self.entries.writing():
+            plan = self.authority._plan(plan_id)
+            owner_id = self.authority._owner(actor, plan)
+            rows = self.entries.selected(self.entries.query().filter(
+                id=receipt_id, entry_type="SupervisorActionReceipt",
+            ).limit(1))
+            if not rows:
+                raise SupervisorFailure(403, "supervisor receipt is not available")
+            receipt = rows[0]
+            if receipt.data.get("scope", {}).get("tenant_id") != f"owner:{owner_id}":
+                raise SupervisorFailure(403, "supervisor receipt is not available")
+            grant_entry = self.authority._latest_entry(receipt.data.get("grant_id", ""))
+            if not grant_entry:
+                raise SupervisorFailure(403, "supervisor receipt is not available")
+            grant = self.authority._public_grant(grant_entry)
+            if (grant.get("plan_id") != plan_id or grant.get("owner_user_id") != owner_id
+                    or grant.get("grant_version") != receipt.data.get("grant_version")):
+                raise SupervisorFailure(409, "the supervisor action is no longer current")
+            prior = self.action_reports._reports(receipt, "owner_undo")
+            if prior:
+                return self.action_reports.project(receipt)
+            if receipt.data.get("status") != "applied" or not self._tier_one(receipt):
+                raise SupervisorFailure(409, "only a tier 1 action can be undone")
+            grant, context = self.authority.action_context(self.authority._principal(grant))
+            baseline = self.entries.supervisor_records(
+                "SupervisorActionReport", last=1, receipt_id=receipt.row_id, report_kind="baseline",
+            )
+            if (context.get("conflict_reason") or not baseline
+                    or context["current_phase"]["phase_id"] != baseline[0].data.get("phase_id")):
+                raise SupervisorFailure(409, "the action rows changed since this receipt")
+            changes = receipt.data.get("changes", [])
+            if not changes:
+                raise SupervisorFailure(409, "the receipt has no reversible changes")
+            diagnostic_changes = []
+            for change in changes:
+                field = change.get("field")
+                if field in {"priorities", "interval"}:
+                    if self._rollback_conflict(grant, context, change):
+                        raise SupervisorFailure(409, "the action rows changed since this receipt")
+                elif field in {"plan_link", "phase_link"}:
+                    diagnostic_changes.append(change)
+                else:
+                    raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
+            with self.scope.environment(plan.environment_id):
+                diagnostic_tasks = self._diagnostic_tasks(context, diagnostic_changes, plan_id)
+                results = [
+                    self._rollback_change(grant, context, change, actor)
+                    for change in changes if change["field"] in {"priorities", "interval"}
+                ]
+                for task in diagnostic_tasks:
+                    links = self.links.row_links([task])
+                    for link in links:
+                        self.links.delete(link, actor)
+                        results.append({"ref": {"table": "links", "id": link.row_id},
+                                        "field": "created_row", "status": "removed"})
+                    self.tasks.delete(task, actor)
+                    results.append({"ref": {"table": "tasks", "id": task.row_id},
+                                    "field": "created_row", "status": "removed"})
+            self.action_reports.record_owner_undo(receipt, plan_id, actor, results)
+        return self.action_reports.project(receipt)
+
+    def owner_undo_counts(self, plan_id: int, actor: Actor) -> dict[str, Any]:
+        return self.action_reports.owner_undo_counts(plan_id, actor)
+
+    def _tier_one(self, receipt: Entry) -> bool:
+        operations = receipt.data.get("proposed_operations")
+        if not isinstance(operations, list) or not operations:
+            return False
+        for operation in operations:
+            if not isinstance(operation, dict) or operation.get("kind") not in OPERATION_COMMANDS:
+                return False
+            area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
+            if CAPABILITY_CATALOGUE[area][noun][verb] != "tier 1":
+                return False
+        return True
+
+    def _diagnostic_tasks(self, context: dict[str, Any], changes: list[dict[str, Any]],
+                          plan_id: int) -> list[Task]:
+        grouped: dict[int, dict[str, dict[str, Any]]] = {}
+        for change in changes:
+            ref = change.get("ref", {})
+            if ref.get("table") != "tasks" or type(ref.get("id")) is not int:
+                raise SupervisorFailure(409, "the action rows changed since this receipt")
+            grouped.setdefault(ref["id"], {})[change["field"]] = change
+        tasks = []
+        for task_id, fields in grouped.items():
+            task_rows = self.tasks.selected(self.tasks.query().filter(id=task_id).limit(1))
+            if len(fields) != 2 or set(fields) != {"plan_link", "phase_link"} or not task_rows:
+                raise SupervisorFailure(409, "the action rows changed since this receipt")
+            task = task_rows[0]
+            plan_change, phase_change = fields["plan_link"], fields["phase_link"]
+            if (plan_change["after_value"] != plan_id
+                    or phase_change["after_value"] != context["current_phase"]["phase_id"]
+                    or task.creator != Actor.plugin(SUPERVISOR_ACTOR)
+                    or task.updater != task.creator or task.updated_at != task.created_at):
+                raise SupervisorFailure(409, "the action rows changed since this receipt")
+            expected = {
+                (Ref.build(task), Ref.build(context["plan"])),
+                (Ref.build(task), Ref.build(context["current_phase_row"])),
+            }
+            links = self.links.row_links([task])
+            actual = {(link.source, link.target) for link in links}
+            if (actual != expected or len(links) != 2
+                    or any(link.creator != Actor.plugin(SUPERVISOR_ACTOR)
+                           or link.updater != link.creator or link.updated_at != link.created_at
+                           for link in links)):
+                raise SupervisorFailure(409, "the action rows changed since this receipt")
+            tasks.append(task)
+        return tasks
+
+    def _rollback_change(self, grant: dict[str, Any], context: dict[str, Any], change: dict[str, Any],
+                         actor: Actor) -> dict[str, Any]:
         ref, field = change["ref"], change["field"]
+        reason = self._rollback_conflict(grant, context, change)
+        if reason:
+            return {"ref": ref, "field": field, "status": "owner_edit_preserved", "reason": reason}
         if field == "priorities":
-            if not self.authority.permits_domain_write(grant, "plan_priorities"):
-                return {"ref": ref, "field": field, "status": "owner_edit_preserved", "reason": "capability_not_current"}
             plan = context["plan"]
-            revision = self.authority.priority_action_revision(plan)
-            if revision != change["after_revision"] or plan.priorities != change["after_value"]:
-                return {"ref": ref, "field": field, "status": "owner_edit_preserved", "reason": "owner_edit_preserved"}
             restored = plan.prioritised(change["before_value"] or "", context["current_phase"]["number"], self.time_source.seconds())
             with self.scope.environment(plan.environment_id):
-                self.plans.save(restored, Actor.plugin(SUPERVISOR_ACTOR))
+                self.plans.save(restored, actor)
             return {"ref": ref, "field": field, "status": "rolled_back"}
         if field == "interval":
-            if not self.authority.permits_domain_write(grant, "check_interval"):
-                return {"ref": ref, "field": field, "status": "owner_edit_preserved", "reason": "capability_not_current"}
             check = self._check(ref["id"])
-            revision = self.authority.check_action_revision(check)
-            enrolled = next((item for item in grant["checks"] if item["check_id"] == ref["id"]), None)
             before_interval = change["before_value"]
-            if (revision != change["after_revision"] or int(check.interval) != change["after_value"]
-                    or enrolled is None
-                    or not enrolled["minimum_interval_minutes"] <= before_interval <= enrolled["baseline_interval_minutes"]):
-                return {"ref": ref, "field": field, "status": "owner_edit_preserved", "reason": "owner_edit_preserved"}
-            self.checks.save(check.with_(interval=float(before_interval)), Actor.plugin(SUPERVISOR_ACTOR))
+            self.checks.save(check.with_(interval=float(before_interval)), actor)
             return {"ref": ref, "field": field, "status": "rolled_back"}
         return {"ref": ref, "field": field, "status": "diagnostic_preserved"}
+
+    def _rollback_conflict(self, grant: dict[str, Any], context: dict[str, Any], change: dict[str, Any]) -> str:
+        ref, field = change["ref"], change["field"]
+        if field == "priorities":
+            plan = context["plan"]
+            if not self.authority.permits_domain_write(grant, "plan_priorities"):
+                return "capability_not_current"
+            if (self.authority.priority_action_revision(plan) != change["after_revision"]
+                    or plan.priorities != change["after_value"]):
+                return "owner_edit_preserved"
+            return ""
+        if field == "interval":
+            if not self.authority.permits_domain_write(grant, "check_interval"):
+                return "capability_not_current"
+            check = self._check(ref["id"])
+            enrolled = next((item for item in grant["checks"] if item["check_id"] == ref["id"]), None)
+            before_interval = change["before_value"]
+            if (self.authority.check_action_revision(check) != change["after_revision"]
+                    or int(check.interval) != change["after_value"] or enrolled is None
+                    or not enrolled["minimum_interval_minutes"] <= before_interval <= enrolled["baseline_interval_minutes"]):
+                return "owner_edit_preserved"
+            return ""
+        return ""
 
     def _request(self, body: object) -> dict[str, Any]:
         fields = {

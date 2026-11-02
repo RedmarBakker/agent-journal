@@ -8,7 +8,7 @@ from pathlib import Path
 PINNED_OPENCLAW_VERSION = "2026.10.8"
 PINNED_OPENCLAW_COMMIT = "dc2523e5a5c7a309517fd7fa834add938231d526"
 CONTRACT_VERSION = 1
-CONTRACT_SCHEMA_SHA256 = "027283e14177280a7f0f5d70961e8d2f5853ec540d059206e07e012bde528e32"
+CONTRACT_SCHEMA_SHA256 = "941b50281e593ef454d6cfdc02df79891f619a2f873c539da1f69bc91a242ef7"
 TOOL_NAMES = (
     "journal_supervisor.observe",
     "journal_supervisor.apply_maintenance",
@@ -53,6 +53,7 @@ ROUTES = {
     "usage": "/_supervisor/v1/usage",
     "apply": "/_supervisor/v1/apply",
     "receipt": "/_supervisor/v1/receipt",
+    "wakeups": "/_supervisor/v1/wakeups",
 }
 FIXTURE_PATH = Path(__file__).resolve().parents[2] / "docs" / "supervisor" / "v1" / "fixtures.json"
 SCHEMA_PATH = FIXTURE_PATH.with_name("contract.schema.json")

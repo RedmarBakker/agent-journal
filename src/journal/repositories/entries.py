@@ -47,6 +47,7 @@ SUPERVISOR_ENTRY_TYPES = (
     "SupervisorRunState",
     "SupervisorUsage",
     "SupervisorObservation",
+    "SupervisorWakeup",
 )
 
 

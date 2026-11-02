@@ -50,8 +50,8 @@ class HintSpool:
             raise HintError("plugin event table is not enabled")
         if type(row_id) is not int or row_id < 1:
             raise HintError("plugin row id must be a positive integer")
-        reference = {"table": table, "id": row_id}
-        key = hashlib.sha256(f"{table}:{row_id}".encode()).hexdigest()
+        reference = {"kind": event["event"], "table": table, "id": row_id}
+        key = hashlib.sha256(f"{reference['kind']}:{table}:{row_id}".encode()).hexdigest()
         with self.locked():
             state = self.read_locked()
             references = state["references"]
@@ -69,10 +69,7 @@ class HintSpool:
             return ([dict(item["ref"]) for item in state["references"][:MAX_BATCH]], bool(state["overflow"]))
 
     def acknowledge(self, references: list[dict], overflow: bool) -> None:
-        keys = {
-            hashlib.sha256(f"{reference['table']}:{reference['id']}".encode()).hexdigest()
-            for reference in references
-        }
+        keys = {self.reference_key(reference) for reference in references}
         with self.locked():
             state = self.read_locked()
             state["references"] = [item for item in state["references"] if item["key"] not in keys]
@@ -94,18 +91,38 @@ class HintSpool:
             raise HintError("plugin hint spool has an unsupported shape")
         if not isinstance(state["references"], list) or len(state["references"]) > MAX_HINTS or type(state["overflow"]) is not bool:
             raise HintError("plugin hint spool exceeds its fixed bounds")
+        upgraded = False
         for item in state["references"]:
             if not isinstance(item, dict) or set(item) != {"key", "ref"}:
                 raise HintError("plugin hint spool contains an invalid item")
             reference = item["ref"]
-            if not isinstance(reference, dict) or set(reference) != {"table", "id"}:
+            if isinstance(reference, dict) and set(reference) == {"table", "id"}:
+                table, row_id = reference["table"], reference["id"]
+                old_key = hashlib.sha256(f"{table}:{row_id}".encode()).hexdigest()
+                if (not isinstance(table, str) or table not in {"plans", "phases", "tasks", "checks"}
+                        or type(row_id) is not int or row_id < 1 or item["key"] != old_key):
+                    raise HintError("plugin hint spool contains an invalid legacy reference")
+                reference["kind"] = f"{table}.updated"
+                item["key"] = self.reference_key(reference)
+                upgraded = True
+            if not isinstance(reference, dict) or set(reference) != {"kind", "table", "id"}:
                 raise HintError("plugin hint spool contains an invalid reference")
-            if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks"} or type(reference["id"]) is not int or reference["id"] < 1:
+            if (not isinstance(reference["kind"], str) or reference["kind"] not in ROW_EVENTS
+                    or not isinstance(reference["table"], str)
+                    or reference["table"] not in {"plans", "phases", "tasks", "checks"}
+                    or reference["kind"].split(".", 1)[0] != reference["table"]
+                    or type(reference["id"]) is not int or reference["id"] < 1):
                 raise HintError("plugin hint spool contains an out-of-scope reference")
-            expected_key = hashlib.sha256(f"{reference['table']}:{reference['id']}".encode()).hexdigest()
+            expected_key = self.reference_key(reference)
             if item["key"] != expected_key:
                 raise HintError("plugin hint spool contains an invalid reference key")
+        if upgraded:
+            self.write_locked(state)
         return state
+
+    @staticmethod
+    def reference_key(reference: dict) -> str:
+        return hashlib.sha256(f"{reference['kind']}:{reference['table']}:{reference['id']}".encode()).hexdigest()
 
     def write_locked(self, state: dict) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)

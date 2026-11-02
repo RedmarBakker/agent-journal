@@ -3,6 +3,7 @@ from typing import Any, Callable
 from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.features.supervisor.support.supervisor_record_reader import SupervisorRecordReader
+from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
 from journal.http.support.request import Request
 from journal.repositories.scope import Scope
 from journal.support.response import Response
@@ -15,8 +16,10 @@ class SupervisorController:
     """Owner grant management, supervisor history and private bridge endpoints."""
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations,
-                 maintenance: SupervisorMaintenance, scope: Scope, records: SupervisorRecordReader) -> None:
+                 maintenance: SupervisorMaintenance, wakeups: SupervisorWakeups, scope: Scope,
+                 records: SupervisorRecordReader) -> None:
         self.authority, self.observations, self.maintenance = authority, observations, maintenance
+        self.wakeups = wakeups
         self.scope, self.records = scope, records
 
     def read_records(self, request: Request) -> Response:
@@ -62,6 +65,28 @@ class SupervisorController:
 
     def receipt(self, request: Request) -> Response:
         return self._service(request, self._receipt)
+
+    def record_wakeup(self, request: Request) -> Response:
+        return self._service(request, self.wakeups.record)
+
+    def read_wakeups(self, request: Request) -> Response:
+        return Response.json(self.wakeups.read(request.number("id"), request.actor))
+
+    def undo(self, request: Request) -> Response:
+        try:
+            answer = self.maintenance.undo_owner(
+                request.number("id"), request.number("receipt_id"), request.actor,
+            )
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)})
+        return Response.json(answer)
+
+    def read_owner_undos(self, request: Request) -> Response:
+        try:
+            answer = self.maintenance.owner_undo_counts(request.number("id"), request.actor)
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)})
+        return Response.json(answer)
 
     def _service(self, request: Request, operation: Callable[[SupervisorPrincipal, object], dict[str, Any]]) -> Response:
         principal = request.supervisor

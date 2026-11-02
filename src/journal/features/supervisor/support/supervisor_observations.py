@@ -5,11 +5,14 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from supervisor_bridge.hints import ROW_EVENTS
+
 from journal.events.rows.check_completed import CheckCompleted
 from journal.events.rows.check_run_changed import CheckRunChanged
 from journal.features.supervisor.support.admissions import DEFAULT_LEASE_SECONDS, MAX_OBSERVATION_AGE, supervisor_key
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
 from journal.features.supervisor.support.supervisor_episode_qualification import OBSERVATION_ENTRY, SupervisorEpisodeQualification
+from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
 from journal.models.check import Check
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
@@ -35,11 +38,12 @@ class SupervisorObservations:
     def __init__(self, authority: SupervisorAuthority, entries: Entries, control_entries: SupervisorEntries,
                  scope: Scope, masks: Masks, time_source: TimeSource,
                  episode_qualification: SupervisorEpisodeQualification,
-                 action_reports: SupervisorActionReports) -> None:
+                 action_reports: SupervisorActionReports, wakeups: SupervisorWakeups) -> None:
         self.authority, self.entries, self.control_entries = authority, entries, control_entries
         self.scope, self.masks, self.time_source = scope, masks, time_source
         self.episode_qualifier = episode_qualification
         self.action_reports = action_reports
+        self.wakeups = wakeups
 
     def completed(self, check: Check, event: CheckCompleted, started: float, fault: str) -> None:
         self._capture(check, event.check_id, started, event.time, event.passed, event.output, fault, False)
@@ -71,17 +75,17 @@ class SupervisorObservations:
             grant = self.authority.revalidate(principal)
             epoch = self.episode_qualifier.current_epoch(grant)
             if epoch != principal.scope["installation_epoch"]:
-                return self._skipped("stale_evidence")
+                return self._skip(grant, request, "stale_evidence")
             qualification = self.episode_qualifier.qualify(grant, epoch)
             reason = self._admission_reason(grant, qualification)
             if reason:
-                return self._skipped(reason)
+                return self._skip(grant, request, reason)
             evidence = self.action_evidence(principal, grant, epoch, qualification["observation_ids"])
             if request["observation_cursor"] is not None:
                 filters = self._observation_filters(grant, epoch)
                 cursor_id = self._cursor_id(request["observation_cursor"], filters)
                 if not any(entry.row_id > cursor_id for entry in evidence):
-                    return self._skipped("empty")
+                    return self._skip(grant, request, "empty")
             return self._admit_run(principal, grant, epoch, qualification, request, evidence)
 
     def action_run(self, principal: SupervisorPrincipal, grant: dict[str, Any], request: dict[str, Any]) -> tuple[Entry, int]:
@@ -312,26 +316,26 @@ class SupervisorObservations:
         episode_id = qualification["episode_id"]
         key = supervisor_key("bridge-run", grant["grant_id"], str(grant["grant_version"]), str(epoch), episode_id)
         if prior := self.entries.keyed(key):
-            return self._prior_admission(principal, grant, prior[0], epoch)
+            return self._prior_admission(principal, grant, prior[0], epoch, request)
         reservation = self._reservation(grant)
         if reservation is None:
-            return self._skipped("unknown_cost")
+            return self._skip(grant, request, "unknown_cost")
         if self._active_run_for_plan(principal, grant, epoch):
-            return self._skipped("busy")
+            return self._skip(grant, request, "busy")
         now = datetime.fromtimestamp(self.time_source.seconds(), timezone.utc)
         day = now.date().isoformat()
         daily = self.entries.supervisor_records(
             "SupervisorRun", last=100, tenant_id=principal.scope["tenant_id"], grant_id=grant["grant_id"], day=day,
         )
         if daily:
-            return self._skipped("budget_exhausted")
+            return self._skip(grant, request, "budget_exhausted")
         latest = self.entries.supervisor_records(
             "SupervisorRun", last=1, tenant_id=principal.scope["tenant_id"], plan_id=grant["plan_id"],
             node_id=principal.scope["writer_node_id"],
         )
         prior_fence = latest[0].data.get("fence") if latest else 0
         if type(prior_fence) is not int or prior_fence < 0 or latest and prior_fence < 1:
-            return self._skipped("needs_owner")
+            return self._skip(grant, request, "needs_owner")
         fence = prior_fence + 1
         run_id, action_id = uuid.uuid4().hex, uuid.uuid4().hex
         lease_until = now + timedelta(seconds=DEFAULT_LEASE_SECONDS)
@@ -377,6 +381,8 @@ class SupervisorObservations:
                 "plan_id": grant["plan_id"],
                 "episode_id": episode_id,
                 "run_ref": run_id,
+                "wakeup_id": request["wakeup_id"],
+                "kind": request["kind"],
                 "pending_action_id": action_id,
                 "installation_epoch": epoch,
                 "fence": fence,
@@ -412,12 +418,13 @@ class SupervisorObservations:
             return False
         return True
 
-    def _prior_admission(self, principal: SupervisorPrincipal, grant: dict[str, Any], run: Entry, epoch: int) -> dict[str, Any]:
+    def _prior_admission(self, principal: SupervisorPrincipal, grant: dict[str, Any], run: Entry, epoch: int,
+                         wakeup_request: dict[str, Any]) -> dict[str, Any]:
         request = {"run_id": run.data.get("run_ref", ""), "installation_epoch": epoch, "fence": run.data.get("fence", 0)}
         try:
             self.action_run(principal, grant, request)
         except SupervisorFailure:
-            return self._skipped("stale_evidence")
+            return self._skip(grant, wakeup_request, "stale_evidence")
         return {"status": "admitted", "run": self._run_result(run, epoch)}
 
     def _admission_reason(self, grant: dict[str, Any], qualification: dict[str, Any]) -> str:
@@ -486,14 +493,23 @@ class SupervisorObservations:
         return body
 
     def _admission_request(self, body: object) -> dict[str, Any]:
-        expected = {"protocol_version", "source", "observation_cursor"}
+        expected = {"protocol_version", "source", "observation_cursor", "wakeup_id", "kind"}
         if (not isinstance(body, dict) or set(body) != expected
                 or type(body["protocol_version"]) is not int or body["protocol_version"] != 1
                 or body["source"] not in ("timer", "hint")
+                or not isinstance(body["wakeup_id"], str) or not 1 <= len(body["wakeup_id"]) <= 256
+                or not isinstance(body["kind"], str)
+                or body["kind"] != "scheduled" and body["kind"] not in ROW_EVENTS
+                or body["source"] == "timer" and body["kind"] != "scheduled"
+                or body["source"] == "hint" and body["kind"] == "scheduled"
                 or body["observation_cursor"] is not None
                 and (not isinstance(body["observation_cursor"], str) or len(body["observation_cursor"]) > 256)):
             raise SupervisorFailure(400, "the supervisor admission request is invalid")
         return body
+
+    def _skip(self, grant: dict[str, Any], request: dict[str, Any], reason: str) -> dict[str, str]:
+        self.wakeups.record_skip(grant, request, reason)
+        return self._skipped(reason)
 
     @staticmethod
     def _service_actor(principal: SupervisorPrincipal) -> None:

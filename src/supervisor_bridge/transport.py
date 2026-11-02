@@ -1,6 +1,7 @@
 import json
 import re
 import ssl
+import uuid
 from dataclasses import dataclass
 from http.client import HTTPException
 from urllib.error import HTTPError, URLError
@@ -16,6 +17,7 @@ from supervisor_bridge.contracts import (
     positive_integer,
     strict_object,
 )
+from supervisor_bridge.hints import ROW_EVENTS
 
 
 REQUEST_TIMEOUT_SECONDS = 20
@@ -180,19 +182,40 @@ class JsonHttpConnection:
 
 
 class SupervisorHttpClient:
-    """Only the five fixed contract routes are available through the journal client."""
+    """Only the six fixed contract routes are available through the journal client."""
 
     def __init__(self, connection: JsonHttpConnection):
         self.connection = connection
 
-    def admit(self, source: str, observation_cursor: str | None) -> dict:
+    def admit(self, source: str, observation_cursor: str | None, wakeup_id: str | None = None,
+              kind: str | None = None) -> dict:
         if source not in {"timer", "hint"}:
             raise TransportError("admission source is not enabled")
         bounded_cursor(observation_cursor)
+        kind = kind or ("scheduled" if source == "timer" else "checks.updated")
+        if (kind != "scheduled" and kind not in ROW_EVENTS or source == "timer" and kind != "scheduled"
+                or source == "hint" and kind == "scheduled"):
+            raise TransportError("admission kind does not match its source")
+        wakeup_id = wakeup_id or uuid.uuid4().hex
+        bounded_text(wakeup_id, "wakeup_id", 1, 256)
         return self.connection.post(ROUTES["admit"], {
             "protocol_version": 1,
             "source": source,
             "observation_cursor": observation_cursor,
+            "wakeup_id": wakeup_id,
+            "kind": kind,
+        })
+
+    def record_wakeup(self, wakeup_id: str, kind: str, result: str, skip_reason: str = "") -> dict:
+        bounded_text(wakeup_id, "wakeup_id", 1, 256)
+        if kind != "scheduled" and kind not in ROW_EVENTS:
+            raise TransportError("wake-up kind is not enabled")
+        return self.connection.post(ROUTES["wakeups"], {
+            "protocol_version": 1,
+            "wakeup_id": wakeup_id,
+            "kind": kind,
+            "result": result,
+            "skip_reason": skip_reason,
         })
 
     def observe(self, request: dict) -> dict:

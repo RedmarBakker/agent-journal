@@ -37,8 +37,12 @@ def bridge_worker(data: Path, settings: dict) -> None:
     bridge = SupervisorBridge(client, state, NoAggregateBudgetProof())
     while True:
         references, overflow = spool.peek_batch()
+        for reference in references:
+            wakeup_id = f"{reference['kind']}:{reference['table']}:{reference['id']}"
+            bridge.reconcile("hint", reference["kind"], wakeup_id)
+        if overflow:
+            bridge.reconcile("timer", wakeup_id=f"overflow:{time.time_ns()}")
         if references or overflow:
-            bridge.reconcile("hint")
             spool.acknowledge(references, overflow)
         time.sleep(0.5)
 

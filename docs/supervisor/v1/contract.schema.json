@@ -434,13 +434,65 @@
             "null"
           ],
           "maxLength": 256
+        },
+        "wakeup_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "kind": {
+          "enum": [
+            "scheduled",
+            "plans.created",
+            "plans.updated",
+            "plans.deleted",
+            "phases.created",
+            "phases.updated",
+            "phases.deleted",
+            "tasks.created",
+            "tasks.updated",
+            "tasks.deleted",
+            "checks.created",
+            "checks.updated",
+            "checks.deleted"
+          ]
         }
       },
       "required": [
         "protocol_version",
         "source",
-        "observation_cursor"
+        "observation_cursor",
+        "wakeup_id",
+        "kind"
       ]
+    },
+    "WakeupRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {"const": 1},
+        "wakeup_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "kind": {
+          "enum": [
+            "scheduled",
+            "plans.created",
+            "plans.updated",
+            "plans.deleted",
+            "phases.created",
+            "phases.updated",
+            "phases.deleted",
+            "tasks.created",
+            "tasks.updated",
+            "tasks.deleted",
+            "checks.created",
+            "checks.updated",
+            "checks.deleted"
+          ]
+        },
+        "result": {"enum": ["Acted", "Proposed", "Nothing to do", "Skipped as quiet", "Skipped", "Handed to you"]},
+        "skip_reason": {"type": "string", "enum": ["", "quiet", "busy", "evidence stale", "budget used up", "needs owner"]}
+      },
+      "required": ["protocol_version", "wakeup_id", "kind", "result", "skip_reason"]
     },
     "Run": {
       "type": "object",
@@ -1526,6 +1578,9 @@
     },
     {
       "$ref": "#/$defs/AdmissionRequest"
+    },
+    {
+      "$ref": "#/$defs/WakeupRequest"
     },
     {
       "$ref": "#/$defs/AdmissionResult"
