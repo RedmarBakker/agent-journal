@@ -1260,9 +1260,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
         def scripted_hook(run):
             hook_calls.append(run)
             hook, _headers = hook_request(run)
-            assert hook["agentId"] == "supervisor" and hook["deliver"] is False
-            assert hook["sessionMode"] == "isolated" and hook["model"] == "anthropic/claude-sonnet-5"
-            assert hook["thinking"] == "high" and hook["timeoutSeconds"] == 180
+            assert hook == {"run_ref": run.to_dict()}
             mcp = McpServer(bridge)
             listed = mcp.handle({"jsonrpc": "2.0", "id": "tools", "method": "tools/list"})
             tools = listed["result"]["tools"]
