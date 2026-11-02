@@ -156,7 +156,7 @@ def staging_root(tmp_path):
         '"writer_supervisor_tls_cert": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_cert",'
         '"writer_supervisor_tls_key": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_key",'
         '"writer_supervisor_tls_ca": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_ca",'
-        "\"gateway\":{\"secrets\":[],\"healthcheck\":{\"test\":[\"CMD\",\"node\",\"-e\",\"fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"]}},"
+        "\"gateway\": {\"secrets\":[],\"healthcheck\":{\"test\":[\"CMD\",\"node\",\"-e\",\"fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"]}},"
         '"backup": {"secrets":[]}},'
         '"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",'
         '"volumes":{"codex_driver_state": {}},"secrets":{}}\n'
