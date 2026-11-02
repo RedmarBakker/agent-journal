@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
-from supervisor_bridge.contracts import ContractError, RunReference, bounded_cursor
+from supervisor_bridge.contracts import ContractError, RunReference, bounded_cursor, bounded_text
 
 
 DEFAULT_STATE_DIR = Path("/var/lib/journal-supervisor/transport")
@@ -67,12 +67,14 @@ class StateStore:
             raise ContractError("unsupported admission skip reason")
         self.update(lambda state: state.update({"last_admission": reason, "last_error": "", "health": "up"}))
 
-    def record_failure(self, kind: str, retryable: bool) -> None:
+    def record_failure(self, kind: str, retryable: bool, cause: str = "") -> None:
         if kind not in {"service_unavailable", "service_unauthorized", "service_rejected", "hook_unavailable", "hook_unauthorized", "state_conflict"}:
             raise ContractError("unsupported bridge failure")
+        if cause:
+            bounded_text(cause, "transport failure cause", 1, 16)
         def change(state: dict) -> None:
             state["health"] = "down"
-            state["last_error"] = kind
+            state["last_error"] = f"{kind}: {cause}" if cause else kind
             if retryable:
                 state["retry_count"] += 1
         self.update(change)

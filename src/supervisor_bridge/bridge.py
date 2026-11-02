@@ -82,8 +82,8 @@ class SupervisorBridge:
         except AuthorizationError:
             self.state.record_failure("service_unauthorized", False)
             return ReconcileResult("failed", "service_unauthorized")
-        except RetryableTransportError:
-            self.state.record_failure("service_unavailable", True)
+        except RetryableTransportError as error:
+            self.state.record_failure("service_unavailable", True, error.cause)
             return ReconcileResult("failed", "service_unavailable")
         except TransportError:
             self.state.record_failure("service_rejected", False)
@@ -148,8 +148,8 @@ class SupervisorBridge:
                     self.state.record_hook_status("unauthorized")
                     self.state.record_failure("hook_unauthorized", False)
                     return ReconcileResult("failed", "hook_unauthorized", run.to_dict())
-                except RetryableTransportError:
-                    self.state.record_failure("hook_unavailable", True)
+                except RetryableTransportError as error:
+                    self.state.record_failure("hook_unavailable", True, error.cause)
                 except TransportError:
                     self.state.record_failure("hook_unavailable", False)
                     return ReconcileResult("failed", "hook_unavailable", run.to_dict())
@@ -224,8 +224,8 @@ class SupervisorBridge:
         except AuthorizationError:
             self.state.record_failure("service_unauthorized", False)
             raise
-        except RetryableTransportError:
-            self.state.record_failure("service_unavailable", True)
+        except RetryableTransportError as error:
+            self.state.record_failure("service_unavailable", True, error.cause)
             raise
         except ReceiptNotFound:
             raise

@@ -323,6 +323,8 @@ static int valid_profile(const char *config_path) {
         "/_supervisor/v1/enrollment",
         "PlanMode.SOLO",
         "SupervisorLink",
+        "CHECK_COMMAND = \"false\"",
+        "This smoke check intentionally fails",
         "\"max_input_tokens_per_turn\": 24000",
         "\"max_output_tokens_per_turn\": 8000",
         "\"max_provider_requests_per_turn\": 8",

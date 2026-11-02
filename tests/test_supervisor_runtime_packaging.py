@@ -293,7 +293,11 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     assert 'sys.path.insert(0, "/opt/agent-journal/src")' in setup
     assert 'ROOT = Path("/data/project")' in setup
     assert 'API = "http://127.0.0.1:8421"' in setup
-    assert 'CHECK_COMMAND = "curl -fsS http://127.0.0.1:8421/journal/health"' in setup
+    assert 'CHECK_TITLE = "Supervisor live smoke failure"' in setup
+    assert 'CHECK_BRIEF = "This smoke check intentionally fails so the supervisor has one current failure to diagnose."' in setup
+    assert 'TEMPLATE_BRIEF = "Read the deliberately failing smoke check' in setup
+    assert 'CHECK_COMMAND = "false"' in setup
+    assert 'This smoke check intentionally fails' in setup
 
     project_command = (ROOT / "src" / "journal" / "support" / "project_command.py").read_text()
     installed_parts = ("journal", "supervisor", "sync_server", "journal.py", "journal.sh")
@@ -950,6 +954,8 @@ def test_runbook_declares_recovery_targets_and_live_staging_probes():
     assert "-e BACKUP_ONCE=1 backup" in runbook
     assert "-e RESTORE_SNAPSHOT=SNAPSHOT_ID" in runbook
     assert "developer laptop" in runbook
+    assert "deliberately failing `false` smoke check" in runbook
+    assert "one current failure episode to diagnose" in runbook
     assert "Cold-reboot the disposable VM" in runbook
     assert "No OpenRig fleet or build worker launcher" in runbook
     assert "build-gateway.sh" in runbook

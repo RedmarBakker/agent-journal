@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from shutil import copytree
 from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -193,7 +194,10 @@ class StubOpener:
 
     def open(self, request, timeout):
         self.requests.append((request, timeout))
-        return StubResponse(self.bodies.pop(0))
+        body = self.bodies.pop(0)
+        if isinstance(body, Exception):
+            raise body
+        return StubResponse(body)
 
 
 class StubProvider:
@@ -426,6 +430,32 @@ def test_service_client_requires_a_ca_for_the_non_loopback_writer(monkeypatch):
 
     with pytest.raises(ValueError, match="TLS CA file is not configured"):
         service_client()
+
+
+def test_retryable_admission_records_http_status_cause(tmp_path):
+    failure = HTTPError("https://writer/_supervisor/v1/admit", 503, "upstream unavailable", {}, None)
+    connection = JsonHttpConnection("https://writer", "private-admission-token")
+    connection.opener = StubOpener([failure])
+    state = StateStore(tmp_path)
+
+    result = SupervisorBridge(SupervisorHttpClient(connection), state).reconcile("timer")
+
+    assert result.reason == "service_unavailable"
+    assert state.snapshot()["last_error"] == "service_unavailable: HTTP 503"
+    assert state.snapshot()["retry_count"] == 1
+
+
+def test_retryable_admission_records_only_safe_url_error_class(tmp_path):
+    secret = "private-admission-token"
+    connection = JsonHttpConnection("https://writer", secret)
+    connection.opener = StubOpener([URLError(secret)])
+    state = StateStore(tmp_path)
+
+    result = SupervisorBridge(SupervisorHttpClient(connection), state).reconcile("timer")
+
+    assert result.reason == "service_unavailable"
+    assert state.snapshot()["last_error"] == "service_unavailable: URLError"
+    assert secret not in state.path.read_text()
 
 
 def test_private_adapters_use_only_fixed_authenticated_routes():

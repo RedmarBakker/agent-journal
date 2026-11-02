@@ -1,4 +1,5 @@
 import json
+import re
 import ssl
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
@@ -32,6 +33,39 @@ class AuthorizationError(TransportError):
 
 class RetryableTransportError(TransportError):
     """A bounded retry may be made with the same request identity."""
+
+    def __init__(self, message: str, cause: str = "TransportError"):
+        known_cause = isinstance(cause, str) and cause in {
+            "URLError", "SSLError", "TimeoutError", "OSError", "TransportError", "HTTP error"
+        }
+        known_status = isinstance(cause, str) and re.fullmatch(r"HTTP (?:429|5[0-9]{2})", cause)
+        if not isinstance(cause, str) or not (known_cause or known_status):
+            raise ValueError("retryable transport cause is unsupported")
+        super().__init__(message)
+        self.cause = cause
+
+
+def retryable_cause(error: BaseException) -> str:
+    if isinstance(error, HTTPError):
+        if type(error.code) is int and (error.code == 429 or 500 <= error.code <= 599):
+            return f"HTTP {error.code}"
+        return "HTTP error"
+    if isinstance(error, URLError):
+        reason = error.reason
+        if isinstance(reason, ssl.SSLError):
+            return "SSLError"
+        if isinstance(reason, TimeoutError):
+            return "TimeoutError"
+        if isinstance(reason, OSError):
+            return "OSError"
+        return "URLError"
+    if isinstance(error, ssl.SSLError):
+        return "SSLError"
+    if isinstance(error, TimeoutError):
+        return "TimeoutError"
+    if isinstance(error, OSError):
+        return "OSError"
+    return "TransportError"
 
 
 class ReceiptNotFound(TransportError):
@@ -78,10 +112,10 @@ class JsonHttpConnection:
             if error.code == 404 and path == ROUTES["receipt"]:
                 raise ReceiptNotFound("canonical receipt is not available yet") from None
             if error.code == 429 or error.code >= 500:
-                raise RetryableTransportError(f"service returned HTTP {error.code}") from None
+                raise RetryableTransportError(f"service returned HTTP {error.code}", retryable_cause(error)) from None
             raise TransportError(f"service rejected the fixed request with HTTP {error.code}") from None
         except (TimeoutError, URLError, OSError) as error:
-            raise RetryableTransportError("service request did not complete") from error
+            raise RetryableTransportError("service request did not complete", retryable_cause(error)) from error
 
     @staticmethod
     def checked_base_url(value: str) -> str:
@@ -227,10 +261,10 @@ class OpenClawHookClient:
             if error.code in {401, 403}:
                 raise AuthorizationError("private hook credential was rejected") from None
             if error.code == 429 or error.code >= 500:
-                raise RetryableTransportError(f"private hook returned HTTP {error.code}") from None
+                raise RetryableTransportError(f"private hook returned HTTP {error.code}", retryable_cause(error)) from None
             raise TransportError(f"private hook rejected the fixed request with HTTP {error.code}") from None
         except (TimeoutError, URLError, OSError) as error:
-            raise RetryableTransportError("private hook request did not complete") from error
+            raise RetryableTransportError("private hook request did not complete", retryable_cause(error)) from error
         if len(body) > RESPONSE_MAX_BYTES:
             raise TransportError("private hook response exceeded the byte limit")
         try:

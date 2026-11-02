@@ -192,6 +192,7 @@ def staging_root(tmp_path):
     )
     (work / "docs/supervisor/v1/live-smoke-setup.py").write_text(
         "if len(sys.argv) != 1\n/_supervisor/v1/enrollment\nPlanMode.SOLO\nSupervisorLink\n"
+        'CHECK_COMMAND = "false"\nThis smoke check intentionally fails\n'
         '"max_input_tokens_per_turn": 24000\n"max_output_tokens_per_turn": 8000\n'
         '"max_provider_requests_per_turn": 8\n"mode": "bounded_write"\n'
     )

@@ -35,12 +35,12 @@ PHASE_TITLE = "Bounded supervisor smoke"
 PHASE_COMPLETION = "the bounded supervisor smoke has a verified receipt"
 TASK_TITLE = "Confirm the owner started Plan driver"
 TASK_BRIEF = "Confirm the real Codex Plan driver is running in this writer installation"
-CHECK_TITLE = "Supervisor writer health"
-CHECK_BRIEF = "Confirm the staged journal writer is healthy"
+CHECK_TITLE = "Supervisor live smoke failure"
+CHECK_BRIEF = "This smoke check intentionally fails so the supervisor has one current failure to diagnose."
 TEMPLATE_TITLE = "Supervisor diagnostic"
-TEMPLATE_BRIEF = "Read the failed writer health check and prepare one bounded diagnostic task for the current phase."
+TEMPLATE_BRIEF = "Read the deliberately failing smoke check and prepare one bounded diagnostic task for the current phase."
 TEMPLATE_PURPOSE = "diagnose the failed service check"
-CHECK_COMMAND = "curl -fsS http://127.0.0.1:8421/journal/health"
+CHECK_COMMAND = "false"
 WAIT_SECONDS = 120
 
 
