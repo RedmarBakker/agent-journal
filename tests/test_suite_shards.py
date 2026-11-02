@@ -2,10 +2,11 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from tests.conftest import dealt_unit
 from tests.service_memory import ServiceMemory
 from tests.shard_deal import ShardDeal
 from tests.stories.builder.coverage_gaps import CoverageGaps
-from tests.stories.builder.story_run_record import StoryRunRecord
+from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE, StoryRunRecord
 
 
 def suite_script(name: str = "suite"):
@@ -52,6 +53,15 @@ def test_story_paths_from_separate_shards_are_checked_after_their_records_merge(
     cross_domain = StoryRunRecord({}, {"VoidProvider": {"RoleCrossDomainWorkers": ["starts from WorkingAgent", "worker creates task", "worker dispatches peer"]}}, CoverageGaps(), set())
     failures = StoryRunRecord.merged([peer, cross_domain]).failures()
     assert any("RoleCrossDomainWorkers and RolePeerWorkers share 100% of their path" in line for line in failures), failures
+
+
+def test_story_files_stay_in_one_shard_when_the_run_collects_paths(monkeypatch):
+    monkeypatch.setenv(STORY_RECORDS_VARIABLE, "story-records")
+    paths = (
+        "tests/stories/main/tasks/planned_dependencies.py::test_a_task_cannot_depend_on_itself",
+        "tests/stories/worker/peers/role_route_strategy.py::test_a_role_worker_can_send_a_job_to_an_idle_peer_in_its_domain",
+    )
+    assert {dealt_unit(path) for path in paths} == {"tests/stories/"}, "story paths from one run are compared together"
 
 
 class Turn:

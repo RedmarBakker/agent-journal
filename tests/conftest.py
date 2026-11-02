@@ -32,7 +32,6 @@ from tests.shard_deal import ShardDeal
 from tests.template_copy import copied
 from tests.shared_journal import SharedJournal
 from tests.journal_boot import booted
-from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
 from journal.features.voices.voices_options import VoicesOptions
 from journal.support.time_source import TimeSource
 
@@ -161,10 +160,10 @@ def recorded_seconds() -> dict[str, float]:
 
 
 def dealt_unit(nodeid: str) -> str:
-    """What a shard is dealt: a test on its own, but the stories all together, since their paths are laid over each other at the end of the run that played them, unless each shard writes its paths for the run that started it, when a story file is dealt on its own."""
+    """What a shard is dealt: a test on its own, but the stories all together so every run compares the same selected paths."""
     if not nodeid.startswith(STORIES_FOLDER):
         return nodeid
-    return nodeid.split("::", 1)[0] if os.environ.get(STORY_RECORDS_VARIABLE) else STORIES_FOLDER
+    return STORIES_FOLDER
 
 
 def pytest_collection_modifyitems(config, items):
