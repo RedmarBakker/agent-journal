@@ -1407,3 +1407,16 @@ def second_body_max_tokens(provider_requests):
     generation = [payload for path, payload, _ in provider_requests if path == "/v1/messages"]
     return generation[-1]["max_tokens"]
 
+
+
+def test_mcp_initialize_answers_a_newer_protocol_version_with_the_latest_it_supports(tmp_path):
+    server = McpServer(SupervisorBridge(StubJournal(), StateStore(tmp_path)))
+
+    def version(requested):
+        answer = server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": requested}})
+        return answer["result"]["protocolVersion"]
+
+    assert version("2025-03-26") == "2025-03-26", "a supported version is answered as asked"
+    assert version("2025-11-25") == "2025-06-18", "a newer client version gets the latest the bridge supports"
+    missing = server.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+    assert missing["error"]["code"] == -32602, "a request without a version is refused"

@@ -7,6 +7,7 @@ from supervisor_bridge.contracts import ContractError, TOOL_NAMES, tool_input_sc
 
 
 PROTOCOL_VERSIONS = frozenset({"2024-11-05", "2025-03-26", "2025-06-18"})
+LATEST_PROTOCOL_VERSION = "2025-06-18"
 MAX_FRAME_BYTES = 65536
 TOOL_DESCRIPTIONS = {
     TOOL_NAMES[0]: "Read the admitted journal snapshot and its bounded observation page.",
@@ -45,9 +46,10 @@ class McpServer:
     def initialize(self, request_id: object, params: object) -> dict:
         if not isinstance(params, dict):
             return self.error(request_id, -32602, "Invalid params")
-        version = params.get("protocolVersion")
-        if not isinstance(version, str) or version not in PROTOCOL_VERSIONS:
-            return self.error(request_id, -32602, "Unsupported protocol version")
+        requested = params.get("protocolVersion")
+        if not isinstance(requested, str):
+            return self.error(request_id, -32602, "Invalid params")
+        version = requested if requested in PROTOCOL_VERSIONS else LATEST_PROTOCOL_VERSION
         return {
             "jsonrpc": "2.0",
             "id": request_id,
