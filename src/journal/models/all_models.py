@@ -43,6 +43,7 @@ from journal.models.secret import Secret
 from journal.models.sequence import Sequence
 from journal.models.setting import Setting
 from journal.models.share import Share
+from journal.models.supervisor_feedback import SupervisorFeedback
 from journal.models.phone import Phone
 from journal.models.phone_code import PhoneCode
 from journal.models.task import Task
@@ -71,5 +72,5 @@ from journal.models.organization_handoff import OrganizationHandoff
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskSizeEstimate, TaskOutcome, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, OrganizationHandoff, StateTransition, Sprint, SprintCommitment, SprintChange, DeliveryRecord, ForecastSnapshot)
+    MODELS = (Environment, User, Agent, Task, TaskSizeEstimate, TaskOutcome, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, OrganizationHandoff, StateTransition, Sprint, SprintCommitment, SprintChange, DeliveryRecord, ForecastSnapshot, SupervisorFeedback)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))

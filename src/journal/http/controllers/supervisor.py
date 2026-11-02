@@ -7,6 +7,7 @@ from journal.features.supervisor.support.supervisor_record_reader import Supervi
 from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
 from journal.http.support.request import Request
 from journal.repositories.scope import Scope
+from journal.repositories.supervisor_feedbacks import SupervisorFeedbacks
 from journal.support.actor import Actor
 from journal.support.response import Response
 from journal.supervisor_authority import SupervisorAuthority
@@ -19,10 +20,12 @@ class SupervisorController:
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations,
                  maintenance: SupervisorMaintenance, wakeups: SupervisorWakeups, scope: Scope,
-                 records: SupervisorRecordReader, feedback: SupervisorFeedback) -> None:
+                 records: SupervisorRecordReader, feedback: SupervisorFeedback,
+                 feedbacks: SupervisorFeedbacks) -> None:
         self.authority, self.observations, self.maintenance = authority, observations, maintenance
         self.wakeups = wakeups
         self.scope, self.records, self.feedback = scope, records, feedback
+        self.feedbacks = feedbacks
 
     def read_records(self, request: Request) -> Response:
         def read() -> dict[str, Any]:
@@ -186,6 +189,19 @@ class SupervisorController:
         except SupervisorFailure as denied:
             return Response(denied.status, {"error": str(denied)})
         return Response.json(answer)
+
+    def read_feedback(self, request: Request) -> Response:
+        return Response.json(self.feedbacks.for_plan(request.number("id"), request.actor))
+
+    def create_feedback(self, request: Request) -> Response:
+        row = self.feedbacks.create(request.number("id"), request.body, request.actor)
+        return Response.json(row, 201)
+
+    def update_feedback(self, request: Request) -> Response:
+        row = self.feedbacks.update(
+            request.number("id"), request.number("feedback_id"), request.body, request.actor,
+        )
+        return Response.json(row)
 
     def _service(self, request: Request, operation: Callable[[SupervisorPrincipal, object], dict[str, Any]]) -> Response:
         principal = request.supervisor
