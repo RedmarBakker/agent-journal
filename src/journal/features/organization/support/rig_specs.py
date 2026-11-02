@@ -23,6 +23,7 @@ from journal.providers.providers import Providers
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
+from journal.support.actor_type import ActorType
 from journal.support.agent_token import AgentToken
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.support.rejection import Rejection
@@ -87,6 +88,8 @@ class RigSpecs:
         _, plan_member = self.plan_member(spec)
         for placed in spec.get("pods", []):
             for candidate in placed.get("members", []):
+                if self.worker_member(candidate):
+                    continue
                 member_cwd = cwd if candidate is plan_member else Path(candidate["cwd"])
                 self.refresh_member(rig, placed, candidate, member_cwd, contracts, provider)
             self.write_pod_fragment(rig, placed)
@@ -101,7 +104,7 @@ class RigSpecs:
         refreshed = self.member(seat, cwd, worker)
         refreshed["env"] = {**member["env"], **self.variables(worker)}
         member.update(refreshed)
-        fragment = self.spec_folder(rig) / "members" / f"{pod['id']}-{member['id']}.json"
+        fragment = self.member_fragment_path(rig, pod["id"], member["id"])
         fragment.parent.mkdir(parents=True, exist_ok=True)
         self.written(fragment, member).chmod(OWNER_ONLY)
 
@@ -170,6 +173,23 @@ class RigSpecs:
             raise Rejection(f"OpenRig Plan pod has no member {PLAN_AGENT}")
         return pod, member
 
+    @staticmethod
+    def worker_member(member: dict) -> bool:
+        return Actor.stamp_number(member.get("env", {}).get(ACTOR, ""), ActorType.WORKER) is not None
+
+    @staticmethod
+    def delegation_edges(spec: dict) -> tuple[tuple[str, str], ...]:
+        edges = [(edge["from"], edge["to"]) for edge in spec.get("edges", []) if edge.get("kind") == EdgeKind.DELEGATES_TO.value]
+        edges.extend(
+            (f"{pod['id']}.{edge['from']}", f"{pod['id']}.{edge['to']}")
+            for pod in spec.get("pods", []) for edge in pod.get("edges", [])
+            if edge.get("kind") == EdgeKind.DELEGATES_TO.value
+        )
+        return tuple(dict.fromkeys(edges))
+
+    def member_fragment_path(self, rig: str, pod: str, member: str) -> Path:
+        return self.spec_folder(rig) / "members" / f"{pod}-{member}.json"
+
     def write_seats(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker], summary: str) -> Path:
         with self.folders.replacing(rig) as folder:
             for seat in seats:
@@ -183,7 +203,7 @@ class RigSpecs:
         if not agent.exists():
             self.agent(agent, seat)
         member = self.member(seat, cwd, worker)
-        path = folder / "members" / f"{seat.pod}-{seat.member}.json"
+        path = self.member_fragment_path(rig, seat.pod, seat.member)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.written(path, member).chmod(OWNER_ONLY)
         return path, member

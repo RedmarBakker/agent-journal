@@ -70,9 +70,10 @@ class RigStaffing:
                 return
             if not self.runtime.rig_exists(rig.name):
                 raise Rejection(f"OpenRig rig {rig.name} for plan {plan.id} is not running")
-            spec = self.specs.refresh_plan(rig.name, self.config.root, self.providers.lookup(agent.provider), self.organization.contracts())
-            self.handoffs.reopen_domain_inboxes(plan, actor, self.role_work_checks.tasks_waiting_for_check(plan))
-            self.runtime.replace_rig(rig.name, spec)
+            with self.folders.locked(rig.name):
+                self.specs.refresh_plan(rig.name, self.config.root, self.providers.lookup(agent.provider), self.organization.contracts())
+                self.handoffs.reopen_domain_inboxes(plan, actor, self.role_work_checks.tasks_waiting_for_check(plan))
+                self.refresh_members(rig, agent.provider)
             return
 
         rig_name = self.names.plan(plan.id)
@@ -107,6 +108,23 @@ class RigStaffing:
         domain_seat = self.seats.domain_agent(domain, provider)
         links = self.seats.links(contracts, (plan_seat, domain_seat))
         self.add_domain_seat(rig, domain_seat, links, environment)
+
+    def refresh_members(self, rig: Rig, provider: str) -> None:
+        spec = self.runtime.read_spec(rig.name)
+        members = tuple(
+            self.runtime.member(rig.name, pod["id"], member["id"], provider)
+            for pod in spec.get("pods", []) for member in pod.get("members", [])
+            if not self.specs.worker_member(member)
+        )
+        for member in members:
+            self.runtime.remove_node(rig.name, member.logical_id)
+            self.runtime.add(rig.name, member.pod, self.specs.member_fragment_path(rig.name, member.pod, member.member), self.specs.spec_folder(rig.name))
+        refreshed = {member.logical_id for member in members}
+        for source, target in self.specs.delegation_edges(spec):
+            if source in refreshed or target in refreshed:
+                self.runtime.edge(rig.name, source, target)
+        for member in members:
+            self.runtime.launch(member, "the plan restarted")
 
     def add_domain_seat(self, rig: Rig, seat: Seat, links: tuple[tuple[Seat, Seat], ...], environment: str) -> None:
         with self.folders.locked(rig.name):

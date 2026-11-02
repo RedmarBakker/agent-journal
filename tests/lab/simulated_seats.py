@@ -107,7 +107,12 @@ class SimulatedSeats:
             self.sessions.pop(target, None)
             self.environments.pop(target, None)
             return self.result(arguments, "{}")
-        if arguments[0] == "edge":
+        if arguments[:2] == ("edge", "add"):
+            rig, source, target = arguments[2:5]
+            edge = {"kind": self.argument(arguments, "--kind"), "from": source, "to": target}
+            edges = self.specs[rig].setdefault("edges", [])
+            if edge not in edges:
+                edges.append(edge)
             return self.result(arguments, "{}")
         return self.result(arguments, "", 2, f"unsupported simulated OpenRig call: {' '.join(arguments)}")
 

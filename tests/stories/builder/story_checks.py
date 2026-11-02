@@ -418,6 +418,11 @@ class StoryChecks:
         messages = [message for target, message in self.simulated_seats().messages if target == member.target]
         assert text in messages, f"OpenRig seat {member.logical_id} for {agent.session} received {messages}, not {text!r}"
 
+    def expect_openrig_delegation_edges(self, rig: str) -> None:
+        expected = set(RigSpecs.delegation_edges(self.app.container.get(SeatRuntime).read_spec(rig)))
+        actual = set(RigSpecs.delegation_edges(self.simulated_seats().specs[rig]))
+        assert actual == expected, f"the running rig {rig} has delegation edges {actual}, not {expected}"
+
     def expect_openrig_seat_environment(self, agent: StoryAgent, seat: str, rig: str = "") -> None:
         member = self.organization_seat_member(seat, rig)
         environment = self.openrig_organization_seat_environment(seat, rig)
