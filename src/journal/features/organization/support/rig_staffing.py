@@ -1,6 +1,7 @@
 from dataclasses import replace
 import json
 import shutil
+import threading
 from pathlib import Path
 
 from journal.config import Config
@@ -9,6 +10,7 @@ from journal.features.organization.support.contracts import Contracts
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_names import RigNames
+from journal.features.organization.support.rig_folders import RigFolders
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD, RigSeats
 from journal.features.organization.support.rig_specs import MINIMUM_OPENRIG_VERSION, OWNER_ONLY, RigSpecs
 from journal.features.organization.support.role import Role
@@ -38,7 +40,7 @@ class RigStaffing:
 
     def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats,
                  specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs,
-                 role_work_checks: RoleWorkChecks, names: RigNames, scope: Scope, environments: Environments) -> None:
+                 role_work_checks: RoleWorkChecks, names: RigNames, scope: Scope, environments: Environments, folders: RigFolders) -> None:
         self.organization = organization
         self.config, self.plans, self.rigs = config, plans, rigs
         self.seats, self.specs, self.runtime, self.providers = seats, specs, runtime, providers
@@ -47,8 +49,19 @@ class RigStaffing:
         self.names = names
         self.scope = scope
         self.environments = environments
+        self.folders = folders
+        self._starts: dict[str, threading.RLock] = {}
+        self._starts_guard = threading.Lock()
+
+    def start_lock(self, rig: str) -> threading.RLock:
+        with self._starts_guard:
+            return self._starts.setdefault(rig, threading.RLock())
 
     def start_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
+        with self.start_lock(self.plan_rig_name(plan)):
+            self._start_plan(plan, environment, agent, actor)
+
+    def _start_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
         self.runtime.check_version()
         rig_id = self.plans.rig_id(plan)
         if rig_id:
@@ -96,6 +109,10 @@ class RigStaffing:
         self.add_domain_seat(rig, domain_seat, links, environment)
 
     def add_domain_seat(self, rig: Rig, seat: Seat, links: tuple[tuple[Seat, Seat], ...], environment: str) -> None:
+        with self.folders.locked(rig.name):
+            self._add_domain_seat(rig, seat, links, environment)
+
+    def _add_domain_seat(self, rig: Rig, seat: Seat, links: tuple[tuple[Seat, Seat], ...], environment: str) -> None:
         path, spec = self.specs.read_rig_spec(rig.name)
         pods = spec.setdefault("pods", [])
         pod = next((value for value in pods if value.get("id") == seat.pod), None)
@@ -248,6 +265,11 @@ class RigStaffing:
 
     def place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
                    worker_for: Callable[[Seat, str], SeatWorker], cwd: Path, running: bool) -> None:
+        with self.folders.locked(rig.name):
+            self._place_role(rig, plan, contracts, plan_seat, domain_seat, role_seat, worker_for, cwd, running)
+
+    def _place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
+                    worker_for: Callable[[Seat, str], SeatWorker], cwd: Path, running: bool) -> None:
         path = self.specs.spec_folder(rig.name) / "rig.yaml"
         try:
             spec = json.loads(path.read_text())
@@ -319,6 +341,10 @@ class RigStaffing:
             self.runtime.launch(member, f"journal organization starts {seat.qualified} with its generated environment")
 
     def remove_role(self, plan: Plan, contracts: Contracts, role: Role, worker: int, provider_name: str) -> None:
+        with self.folders.locked(self.plan_rig_name(plan)):
+            self._remove_role(plan, contracts, role, worker, provider_name)
+
+    def _remove_role(self, plan: Plan, contracts: Contracts, role: Role, worker: int, provider_name: str) -> None:
         if role.cardinality is not Cardinality.MANY:
             return
         rig_id = self.plans.rig_id(plan)

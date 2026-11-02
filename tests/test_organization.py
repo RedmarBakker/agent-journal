@@ -42,6 +42,7 @@ from journal.features.organization.support import seat_runtime as seat_runtime_m
 from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.rig_names import RigNames
+from journal.features.organization.support.rig_folders import RigFolders
 from journal.features.organization.support.rig_seats import RigSeats
 from journal.features.organization.support.rig_specs import DENIED, RigSpecs
 from journal.features.organization.support.seat_worker import SeatWorker
@@ -649,6 +650,150 @@ def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_
     app.runtime().deferred.drain()
 
 
+def test_a_reader_keeps_the_complete_rig_while_its_replacement_is_built(app, tmp_path, monkeypatch):
+    from threading import Event, Thread, current_thread
+
+    contracts = plan_contracts(app, tmp_path)
+    specs, runtime = app.container.get(RigSpecs), app.container.get(SeatRuntime)
+    rig = "reader-during-rig-rewrite"
+    worker = lambda seat, prefix: SeatWorker(Actor.agent(""), AgentToken(f"{prefix}-{seat.agent()}"), "main", seat.qualified, rig)
+    specs.write(rig, contracts, ("alpha",), app.config.root, lambda seat: worker(seat, "old"), Claude())
+    entered, release, failures = Event(), Event(), []
+    original = specs.agent
+
+    def paused_agent(_specs, folder, seat):
+        if current_thread() is writer and not entered.is_set():
+            entered.set()
+            assert release.wait(10), "the reader did not release the replacement writer"
+        original(folder, seat)
+
+    def rewrite():
+        try:
+            with app.container.get(Scope).environment(1):
+                specs.write(rig, contracts, ("alpha",), app.config.root, lambda seat: worker(seat, "new"), Claude())
+        except Exception as failure:
+            failures.append(failure)
+
+    monkeypatch.setattr(RigSpecs, "agent", paused_agent)
+    writer = Thread(target=rewrite, name="rig-replacement")
+    writer.start()
+    try:
+        assert entered.wait(10), "the replacement writer did not begin"
+        before = runtime.member(rig, "alpha", "planner", "claude")
+        assert before.token == "old-alpha-planner", "a reader sees the complete published generation while the next is built"
+    finally:
+        release.set()
+        writer.join(10)
+    assert not writer.is_alive() and not failures, failures
+    assert runtime.member(rig, "alpha", "planner", "claude").token == "new-alpha-planner"
+
+
+def test_simultaneous_plan_launches_write_the_initial_rig_once(app, tmp_path, monkeypatch):
+    from threading import Barrier, Lock, Thread, current_thread
+    from journal.features.organization.support.rig_staffing import RigStaffing
+
+    _fixture, organization = loaded(app, tmp_path)
+    organization.reload()
+    user_set(app, "workers.openrig_version", "0.7.6")
+    monkeypatch.setattr(SeatRuntime, "run", lambda _runtime, *arguments, check=True: subprocess.CompletedProcess(["rig", *arguments], 0, "{}", ""))
+    monkeypatch.setattr(SeatRuntime, "version", lambda _runtime: "0.7.6")
+    plans, specs, staffing = (app.container.get(kind) for kind in (Plans, RigSpecs, RigStaffing))
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="Concurrent plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), Actor.system())
+    environment = app.container.get(Environments).find(1)
+    agent = Agent(environment_id=1, provider="claude")
+    barrier, guard, seen, writes, failures = Barrier(2), Lock(), set(), [], []
+    original_id, original_write = plans.rig_id, specs.write_seats
+
+    def simultaneous_lookup(_plans, row):
+        result = original_id(row)
+        if current_thread().name not in {"plan-start", "plan-reopen"}:
+            return result
+        with guard:
+            first = current_thread() not in seen
+            seen.add(current_thread())
+        if first:
+            barrier.wait(10)
+        return result
+
+    def record_write(_specs, *arguments, **keywords):
+        writes.append(current_thread().name)
+        return original_write(*arguments, **keywords)
+
+    def launch():
+        try:
+            with app.container.get(Scope).environment(1):
+                staffing.start_plan(plan, environment, agent, Actor.system())
+        except Exception as failure:
+            failures.append(failure)
+
+    monkeypatch.setattr(Plans, "rig_id", simultaneous_lookup)
+    monkeypatch.setattr(RigSpecs, "write_seats", record_write)
+    threads = [Thread(target=launch, name=name) for name in ("plan-start", "plan-reopen")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(15)
+    assert not any(thread.is_alive() for thread in threads), "both launch paths finish"
+    assert not failures, failures
+    assert len(writes) == 1, f"the same missing rig was created by {writes}"
+
+
+def test_a_rig_reader_waits_until_the_folder_swap_is_complete(app, tmp_path, monkeypatch):
+    from threading import Event, Thread, current_thread
+
+    contracts = plan_contracts(app, tmp_path)
+    specs, runtime = app.container.get(RigSpecs), app.container.get(SeatRuntime)
+    rig = "reader-during-rig-swap"
+    worker = lambda seat: SeatWorker(Actor.agent(""), AgentToken(seat.agent()), "main", seat.qualified, rig)
+    specs.write(rig, contracts, ("alpha",), app.config.root, worker, Claude())
+    folder = specs.spec_folder(rig)
+    swapping, attempted, release, failures, found = Event(), Event(), Event(), [], []
+    rename, locked = Path.rename, RigFolders.locked
+
+    def paused_rename(path, target):
+        if path.name == "next" and target == folder:
+            swapping.set()
+            assert release.wait(10), "the reader did not release publication"
+        return rename(path, target)
+
+    def observed_lock(folders, name):
+        lock = locked(folders, name)
+        if current_thread().name == "rig-reader":
+            attempted.set()
+        return lock
+
+    def rewrite():
+        try:
+            with app.container.get(Scope).environment(1):
+                specs.write(rig, contracts, ("alpha",), app.config.root, worker, Claude())
+        except Exception as failure:
+            failures.append(failure)
+
+    def read():
+        try:
+            found.append(runtime.member(rig, "alpha", "planner", "claude"))
+        except Exception as failure:
+            failures.append(failure)
+
+    monkeypatch.setattr(Path, "rename", paused_rename)
+    monkeypatch.setattr(RigFolders, "locked", observed_lock)
+    writer, reader = Thread(target=rewrite, name="rig-publisher"), Thread(target=read, name="rig-reader")
+    writer.start()
+    try:
+        assert swapping.wait(10), "publication did not reach the folder swap"
+        assert not folder.exists(), "the test holds publication between its two renames"
+        reader.start()
+        assert attempted.wait(10), "the reader did not enter the publication guard"
+    finally:
+        release.set()
+        writer.join(10)
+        if reader.ident is not None:
+            reader.join(10)
+    assert not writer.is_alive() and not reader.is_alive() and not failures, failures
+    assert len(found) == 1 and found[0].token == "alpha-planner", "the reader validates a complete published folder after the swap"
+
+
 def test_a_codex_plan_rig_trusts_only_the_generated_journal_hooks(app, tmp_path, monkeypatch):
     use_provider(app, monkeypatch, "codex")
     codex_home = tmp_path / "codex-home"
@@ -1152,7 +1297,8 @@ def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_wind
 
 
 def test_plan_rig_cost_coverage_counts_plan_domain_and_role_agents(tmp_path):
-    runtime = SeatRuntime(SimpleNamespace(home=tmp_path), SimpleNamespace())
+    config = SimpleNamespace(home=tmp_path)
+    runtime = SeatRuntime(config, SimpleNamespace(), RigFolders(config))
     folder = runtime.spec_folder("plan-1")
     folder.mkdir(parents=True)
     (folder / "rig.yaml").write_text(json.dumps({"pods": [
@@ -1172,7 +1318,8 @@ def test_openrig_075_cost_json_preserves_per_seat_estimate_metadata():
         "coverage": "current native session", "stale": False, "ageSeconds": 3,
     }], "note": "current daemon only"}
     calls = []
-    runtime = SeatRuntime(SimpleNamespace(), SimpleNamespace())
+    config = SimpleNamespace()
+    runtime = SeatRuntime(config, SimpleNamespace(), RigFolders(config))
     runtime.run = lambda *args, **kwargs: calls.append((args, kwargs)) or subprocess.CompletedProcess(
         ["rig", *args], 0, json.dumps(payload), "")
 
@@ -1223,7 +1370,8 @@ def test_openrig_cost_json_keeps_unreported_cost_explicit():
     payload = {"seats": [{"seatSession": "alpha-builder@release", "status": "not_reported",
                           "kind": "codex", "reason": "Codex reports no cost", "tokens": {"input": 10}}],
                "note": "current daemon only"}
-    runtime = SeatRuntime(SimpleNamespace(), SimpleNamespace())
+    config = SimpleNamespace()
+    runtime = SeatRuntime(config, SimpleNamespace(), RigFolders(config))
     runtime.run = lambda *_args, **_kwargs: subprocess.CompletedProcess(
         ["rig", "usage", "cost"], 0, json.dumps(payload), "")
 
@@ -1724,7 +1872,7 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
         health_calls.append((url, timeout))
         return BytesIO(json.dumps({"semver": "0.7.5"}).encode())
 
-    runtime = SeatRuntime(config, Settings(), execute, health_request)
+    runtime = SeatRuntime(config, Settings(), RigFolders(config), execute, health_request)
     member = runtime.member("release", "alpha", "builder", "codex")
     token = runtime.worker_token(member, "codex", "gpt-6-luna", "worker:7", "development")
     assert (member.logical_id, member.target, member.provider, member.model, member.runtime) == ("alpha.builder", "alpha-builder@release", "codex", "gpt-6-luna", "codex")
@@ -1767,7 +1915,8 @@ def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_
         return BytesIO(json.dumps(health).encode())
 
     monkeypatch.setenv("OPENRIG_URL", "http://127.0.0.1:7433")
-    runtime = SeatRuntime(SimpleNamespace(), Settings(), execute, health_request)
+    config = SimpleNamespace()
+    runtime = SeatRuntime(config, Settings(), RigFolders(config), execute, health_request)
     runtime.session = lambda *_args: session_calls.append(True)
     member = SimpleNamespace(openrig_version="0.7.4", target="alpha-builder@release")
     runner = object.__new__(SeatRunner)
@@ -1925,7 +2074,8 @@ def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitor
         raise TimeoutError("daemon health request timed out")
 
     monkeypatch.setenv("OPENRIG_URL", "http://127.0.0.1:7433")
-    runtime = SeatRuntime(SimpleNamespace(home=tmp_path), SimpleNamespace(option=lambda _option: ""), health_request=unreachable)
+    config = SimpleNamespace(home=tmp_path)
+    runtime = SeatRuntime(config, SimpleNamespace(option=lambda _option: ""), RigFolders(config), health_request=unreachable)
     identity = SeatJobIdentity.from_worker(worker)
     seat = object.__new__(SeatRunner)
     seat._guard = Lock()
@@ -2898,6 +3048,7 @@ def test_two_projects_start_plan_four_on_distinct_openrig_rigs(tmp_path):
             SimpleNamespace(lookup=lambda _provider: object()), SimpleNamespace(), SimpleNamespace(),
             RigNames(SecretValues(config)), SimpleNamespace(environment=lambda _environment_id: nullcontext()),
             SimpleNamespace(find=lambda _environment_id: SimpleNamespace(name="main")),
+            RigFolders(config),
         )
         result.record_plan_rig = lambda *_args: None
         return result

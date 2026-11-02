@@ -13,6 +13,7 @@ from typing import Callable
 from urllib.request import urlopen
 
 from journal.config import Config
+from journal.features.organization.support.rig_folders import RigFolders
 from journal.features.organization.support.usage_ledger import UsageReading
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE
@@ -70,9 +71,10 @@ class SeatSession:
 class SeatRuntime:
     """Consume the selected-provider spec; it does not generate rig or agent specs."""
 
-    def __init__(self, config: Config, settings: SettingRows, execute: Callable = subprocess.run,
+    def __init__(self, config: Config, settings: SettingRows, folders: RigFolders, execute: Callable = subprocess.run,
                  health_request: Callable = urlopen) -> None:
         self.config, self.settings, self.execute, self.health_request = config, settings, execute, health_request
+        self.folders = folders
 
     def roster(self, rig: str) -> tuple[SeatAddress, ...]:
         spec = self.read_spec(rig)
@@ -87,9 +89,13 @@ class SeatRuntime:
         return f"{pod}-{member}@{rig}"
 
     def spec_folder(self, rig: str) -> Path:
-        return self.config.home / "runtime" / "rigs" / rig
+        return self.folders.path(rig)
 
     def read_spec(self, rig: str) -> dict:
+        with self.folders.locked(rig):
+            return self._read_spec(rig)
+
+    def _read_spec(self, rig: str) -> dict:
         path = self.spec_folder(rig) / "rig.yaml"
         if not path.is_file():
             raise Rejection(f"OpenRig spec for {rig} is missing at {path}")
@@ -102,6 +108,10 @@ class SeatRuntime:
         return spec
 
     def member(self, rig: str, pod: str, member: str, selected_provider: str = "") -> SeatMember:
+        with self.folders.locked(rig):
+            return self._member(rig, pod, member, selected_provider)
+
+    def _member(self, rig: str, pod: str, member: str, selected_provider: str) -> SeatMember:
         folder = self.spec_folder(rig)
         spec = self.read_spec(rig)
         for placed in spec.get("pods", []):
@@ -133,6 +143,10 @@ class SeatRuntime:
         raise Rejection(f"OpenRig rig {rig} has no organization seat {identity}")
 
     def organization_seat_for_session(self, rig: str, provider: str, session: str) -> str:
+        with self.folders.locked(rig):
+            return self._organization_seat_for_session(rig, provider, session)
+
+    def _organization_seat_for_session(self, rig: str, provider: str, session: str) -> str:
         if not session or not (self.spec_folder(rig) / "rig.yaml").is_file():
             return ""
         for address in self.roster(rig):
@@ -272,11 +286,12 @@ class SeatRuntime:
         return next((value for value in rows if any(str(value.get(key, "")) in identifiers for key in ("name", "id", "logicalId", "logical_id", "seat", "sessionName"))), {})
 
     def expected_seats(self, rig: str) -> int | None:
-        path = self.config.home / "runtime" / "rigs" / rig / "rig.yaml"
-        try:
-            spec = json.loads(path.read_text())
-        except (OSError, ValueError):
-            return None
+        with self.folders.locked(rig):
+            path = self.spec_folder(rig) / "rig.yaml"
+            try:
+                spec = json.loads(path.read_text())
+            except (OSError, ValueError):
+                return None
         members = [member for pod in spec.get("pods", []) for member in pod.get("members", [])]
         return len(members) or None
 

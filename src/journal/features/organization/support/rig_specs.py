@@ -11,6 +11,7 @@ from journal.features.organization.support.contract_folder import ContractFolder
 from journal.features.organization.support.contracts import PLAN, Contracts
 from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.rig_folders import RigFolders
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD, RigSeats
 from journal.features.organization.support.seat import Seat
 from journal.features.organization.support.seat_worker import SeatWorker
@@ -63,9 +64,10 @@ OWNER_ONLY = 0o600
 class RigSpecs:
     """Writes pinned OpenRig specs for organization plan rigs and the shared rig for journal-cardinality Roles, with provider runtimes, hooks, models, permissions, guidance and skills."""
 
-    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, seats: RigSeats, skills: SkillIds, files: SkillFiles, folder: ContractFolder, settings: SettingRows) -> None:
+    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, seats: RigSeats, skills: SkillIds, files: SkillFiles, folder: ContractFolder, settings: SettingRows, folders: RigFolders) -> None:
         self.config, self.providers, self.setup, self.seats = config, providers, setup, seats
         self.skills, self.files, self.folder, self.settings = skills, files, folder, settings
+        self.folders = folders
 
     def write(self, rig: str, contracts: Contracts, domains: tuple[str, ...], cwd: Path, workers: Callable[[Seat], SeatWorker], provider: Provider | None = None) -> Path:
         provider = provider or self.providers.shell_provider(os.environ)
@@ -77,6 +79,10 @@ class RigSpecs:
         return self.write_seats(rig, seats, links, cwd, workers, f"The journal's shared organization Roles in {rig}.")
 
     def refresh_plan(self, rig: str, cwd: Path, provider: Provider, contracts: Contracts) -> Path:
+        with self.folders.locked(rig):
+            return self._refresh_plan(rig, cwd, provider, contracts)
+
+    def _refresh_plan(self, rig: str, cwd: Path, provider: Provider, contracts: Contracts) -> Path:
         path, spec = self.read_rig_spec(rig)
         _, plan_member = self.plan_member(spec)
         for placed in spec.get("pods", []):
@@ -141,6 +147,10 @@ class RigSpecs:
             raise Rejection(f"OpenRig organization seat {identity} in rig {rig} has no journal identity to preserve: {failed}") from failed
 
     def read_rig_spec(self, rig: str) -> tuple[Path, dict]:
+        with self.folders.locked(rig):
+            return self._read_rig_spec(rig)
+
+    def _read_rig_spec(self, rig: str) -> tuple[Path, dict]:
         path = self.spec_folder(rig) / "rig.yaml"
         try:
             spec = json.loads(path.read_text())
@@ -161,14 +171,11 @@ class RigSpecs:
         return pod, member
 
     def write_seats(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker], summary: str) -> Path:
-        folder = self.spec_folder(rig)
-        if folder.exists():
-            shutil.rmtree(folder)
-        for seat in seats:
-            self.agent(folder / "agents" / seat.agent(), seat)
-        path = self.written(folder / "rig.yaml", self.spec(rig, seats, links, cwd, workers, summary))
-        path.chmod(OWNER_ONLY)
-        return path
+        with self.folders.replacing(rig) as folder:
+            for seat in seats:
+                self.agent(folder / "agents" / seat.agent(), seat)
+            self.written(folder / "rig.yaml", self.spec(rig, seats, links, cwd, workers, summary)).chmod(OWNER_ONLY)
+        return self.spec_folder(rig) / "rig.yaml"
 
     def member_fragment(self, rig: str, seat: Seat, cwd: Path, worker: SeatWorker) -> tuple[Path, dict]:
         folder = self.spec_folder(rig)
@@ -197,7 +204,7 @@ class RigSpecs:
         return path
 
     def spec_folder(self, rig: str) -> Path:
-        return self.config.home / "runtime" / "rigs" / rig
+        return self.folders.path(rig)
 
     def spec(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker], summary: str = "") -> dict:
         cwd = cwd.resolve()
