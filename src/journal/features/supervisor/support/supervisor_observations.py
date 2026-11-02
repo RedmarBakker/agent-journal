@@ -9,10 +9,16 @@ from supervisor_bridge.hints import ROW_EVENTS
 
 from journal.events.rows.check_completed import CheckCompleted
 from journal.events.rows.check_run_changed import CheckRunChanged
-from journal.features.supervisor.support.admissions import DEFAULT_LEASE_SECONDS, MAX_OBSERVATION_AGE, supervisor_key
+from journal.features.supervisor.support.admissions import (
+    DEFAULT_LEASE_SECONDS,
+    MAX_OBSERVATION_AGE,
+    supervisor_key,
+    supervisor_run_reservation_microusd,
+)
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
 from journal.features.supervisor.support.supervisor_episode_qualification import OBSERVATION_ENTRY, SupervisorEpisodeQualification
 from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
+from journal.features.supervisor.support.supervisor_environment_reader import SupervisorEnvironmentReader
 from journal.models.check import Check
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
@@ -33,17 +39,19 @@ EVIDENCE_ACTOR = Actor.plugin("journal-supervisor")
 
 
 class SupervisorObservations:
-    """Captures check evidence with its result and reads bounded, grant-scoped observation pages."""
+    """Captures check evidence and the bounded environment view a grant may observe."""
 
     def __init__(self, authority: SupervisorAuthority, entries: Entries, control_entries: SupervisorEntries,
                  scope: Scope, masks: Masks, time_source: TimeSource,
                  episode_qualification: SupervisorEpisodeQualification,
-                 action_reports: SupervisorActionReports, wakeups: SupervisorWakeups) -> None:
+                 action_reports: SupervisorActionReports, wakeups: SupervisorWakeups,
+                 environment_reader: SupervisorEnvironmentReader) -> None:
         self.authority, self.entries, self.control_entries = authority, entries, control_entries
         self.scope, self.masks, self.time_source = scope, masks, time_source
         self.episode_qualifier = episode_qualification
         self.action_reports = action_reports
         self.wakeups = wakeups
+        self.environment_reader = environment_reader
 
     def completed(self, check: Check, event: CheckCompleted, started: float, fault: str) -> None:
         self._capture(check, event.check_id, started, event.time, event.passed, event.output, fault, False)
@@ -55,9 +63,11 @@ class SupervisorObservations:
         request = self._request(body)
         grant = self.authority.revalidate(principal)
         run, installation_epoch = self._run(principal, grant, request)
+        environment, environment_read_id = self.environment_reader.read(principal, grant, run.data, request["cursor"])
         snapshot = self.authority.observation_snapshot(principal, installation_epoch)
         qualification = self.episode_qualifier.qualify(grant, installation_epoch)
-        snapshot = {**snapshot, "episode_qualification": qualification,
+        snapshot = {**snapshot, "environment": environment, "environment_read_id": environment_read_id,
+            "episode_qualification": qualification,
             "progress_watermark_ms": qualification["progress_watermark_ms"]}
         page = self._page(grant, installation_epoch, request["cursor"])
         return {
@@ -320,14 +330,22 @@ class SupervisorObservations:
         reservation = self._reservation(grant)
         if reservation is None:
             return self._skip(grant, request, "unknown_cost")
-        if self._active_run_for_plan(principal, grant, epoch):
-            return self._skip(grant, request, "busy")
         now = datetime.fromtimestamp(self.time_source.seconds(), timezone.utc)
         day = now.date().isoformat()
         daily = self.entries.supervisor_records(
             "SupervisorRun", last=100, tenant_id=principal.scope["tenant_id"], grant_id=grant["grant_id"], day=day,
         )
-        if daily:
+        used_cost = self._settled_daily_cost(principal, daily)
+        daily_cost = grant["limits"]["max_cost_microusd_per_day"]
+        if used_cost is not None and used_cost >= daily_cost:
+            return self._skip(grant, request, "budget_exhausted")
+        if self._active_run_for_plan(principal, grant, epoch):
+            return self._skip(grant, request, "busy")
+        if used_cost is None:
+            return self._skip(grant, request, "unknown_cost")
+        if len(daily) >= grant["limits"]["max_turns_per_day"]:
+            return self._skip(grant, request, "budget_exhausted")
+        if used_cost + reservation[1] > daily_cost:
             return self._skip(grant, request, "budget_exhausted")
         latest = self.entries.supervisor_records(
             "SupervisorRun", last=1, tenant_id=principal.scope["tenant_id"], plan_id=grant["plan_id"],
@@ -344,21 +362,40 @@ class SupervisorObservations:
 
     def _reservation(self, grant: dict[str, Any]) -> tuple[dict[str, Any], int] | None:
         limits = grant["limits"]
-        reserved_cost = limits.get("max_cost_microusd_per_day")
-        turns = limits.get("max_turns_per_day")
+        daily_cost = limits.get("max_cost_microusd_per_day")
         input_per_turn = limits.get("max_input_tokens_per_turn")
         output_per_turn = limits.get("max_output_tokens_per_turn")
-        if any(type(value) is not int or value < 1 for value in (reserved_cost, turns, input_per_turn, output_per_turn)):
+        requests = limits.get("max_provider_requests_per_turn")
+        if any(type(value) is not int or value < 1
+               for value in (daily_cost, input_per_turn, output_per_turn, requests)):
             return None
+        reserved_cost = min(
+            daily_cost,
+            supervisor_run_reservation_microusd(input_per_turn, output_per_turn),
+        )
         cost_usd = str(Decimal(reserved_cost) / Decimal(1_000_000))
         reservation = {
             "cost_usd": cost_usd,
-            "turns": turns,
-            "input_tokens": input_per_turn * turns,
-            "output_tokens": output_per_turn * turns,
-            "max_retries": turns - 1,
+            "turns": 1,
+            "input_tokens": input_per_turn,
+            "output_tokens": output_per_turn,
+            "max_retries": requests - 1,
         }
         return reservation, reserved_cost
+
+    def _settled_daily_cost(self, principal: SupervisorPrincipal, runs: list[Entry]) -> int | None:
+        total = 0
+        for run in runs:
+            usage = self.entries.supervisor_records(
+                "SupervisorUsage", last=1, tenant_id=principal.scope["tenant_id"], run_ref=run.data["run_ref"],
+            )
+            if not usage or usage[0].data.get("status") not in {"known", "overrun"}:
+                return None
+            cost = usage[0].data.get("cost_microusd")
+            if type(cost) is not int or cost < 0:
+                return None
+            total += cost
+        return total
 
     def _record_admission(self, principal: SupervisorPrincipal, grant: dict[str, Any], epoch: int, episode_id: str,
                           request: dict[str, Any], evidence: list[Entry], key: str, day: str, fence: int,

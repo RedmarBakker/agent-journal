@@ -411,6 +411,10 @@ class SupervisorAuthority:
             raise SupervisorFailure(403, "the supervisor service credential does not cover this environment")
         return permissions
 
+    def observation_permissions(self, principal: SupervisorPrincipal) -> SupervisorGrant:
+        entry, grant = self._active_grant(principal)
+        return SupervisorGrant.stored(self._grant_v2(entry, grant))
+
     def action_context(self, principal: SupervisorPrincipal) -> tuple[dict[str, Any], dict[str, Any]]:
         entry, grant = self._active_grant(principal)
         plan = self._plan(grant["plan_id"])

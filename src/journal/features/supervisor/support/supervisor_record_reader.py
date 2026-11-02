@@ -35,7 +35,7 @@ TIER_NUMBERS = {"tier 1": 1, "tier 2": 2, "tier 3": 3}
 
 
 class SupervisorRecordReader:
-    """Reads supervisor wake-ups, runs and receipts for plans in the current environment."""
+    """Reads supervisor wake-ups, runs, environment summaries and receipts for current plans."""
 
     def __init__(self, entries: Entries, plans: Plans, scope: Scope, time_source: TimeSource) -> None:
         self.entries, self.plans, self.scope, self.time_source = entries, plans, scope, time_source
@@ -46,7 +46,7 @@ class SupervisorRecordReader:
         before_id = self._before_id(before)
         current, previous = self._windows(period, self.time_source.moment())
         with self.scope.environment(PROJECT):
-            runs, receipts, proposals, decisions = self._records(plan_ids)
+            runs, receipts, proposals, decisions, environment_reads = self._records(plan_ids)
             verified = self._verified_receipts(receipts)
         current_receipts = [receipt for receipt in receipts if self._within(receipt.created_at, current)
                             and self._receipt_matches_area(receipt, area)]
@@ -63,7 +63,8 @@ class SupervisorRecordReader:
         current_proposals = [proposal for proposal in proposals if self._within(proposal.created_at, current)
                              and self._receipt_matches_area(proposal, area)]
         record_rows = self._record_rows(
-            current_runs, current_receipts, current_proposals, current_decisions, decisions, verified,
+            current_runs, current_receipts, current_proposals, current_decisions, decisions,
+            environment_reads, verified,
         )
         remaining = [row for row in record_rows if before_id is None or row["id"] < before_id]
         page = remaining[:PAGE_SIZE]
@@ -615,10 +616,11 @@ class SupervisorRecordReader:
         current_end = now + timedelta(microseconds=1)
         return (current_start, current_end), (previous_start, current_start)
 
-    def _records(self, plan_ids: list[int]) -> tuple[list[Entry], list[Entry], list[Entry], list[Entry]]:
+    def _records(self, plan_ids: list[int]) -> tuple[list[Entry], list[Entry], list[Entry], list[Entry], list[Entry]]:
         runs = [run for plan_id in plan_ids for run in self._entries("SupervisorRun", plan_id=plan_id)]
         receipts = []
         proposals = []
+        environment_reads = []
         for run in runs:
             run_ref = run.data.get("run_ref")
             tenant_id, grant_id = run.data.get("tenant_id"), run.data.get("grant_id")
@@ -628,8 +630,11 @@ class SupervisorRecordReader:
             receipts.extend(receipt for receipt in candidates if self._receipt_tenant(receipt) == tenant_id)
             proposals.extend(self._entries("SupervisorProposalReceipt", tenant_id=tenant_id,
                                            grant_id=grant_id, run_id=run_ref))
+            environment_reads.extend(self._entries("SupervisorEnvironmentRead", tenant_id=tenant_id,
+                                                   grant_id=grant_id, run_id=run_ref))
         receipts = list({receipt.row_id: receipt for receipt in receipts}.values())
         proposals = list({proposal.row_id: proposal for proposal in proposals}.values())
+        environment_reads = list({entry.row_id: entry for entry in environment_reads}.values())
         grant_scopes = {
             (run.data["tenant_id"], run.data["grant_id"])
             for run in runs
@@ -642,7 +647,7 @@ class SupervisorRecordReader:
             for decision in self._entries("SupervisorProposalDecision", tenant_id=tenant_id, grant_id=grant_id)
         ]
         decisions = [decision for decision in decisions if decision.data.get("proposal_id") in proposal_ids]
-        return runs, receipts, proposals, decisions
+        return runs, receipts, proposals, decisions, environment_reads
 
     def _verified_receipts(self, receipts: list[Entry]) -> set[int]:
         return {
@@ -718,15 +723,20 @@ class SupervisorRecordReader:
 
     @staticmethod
     def _record_rows(runs: list[Entry], receipts: list[Entry], proposals: list[Entry], decisions: list[Entry],
-                     all_decisions: list[Entry], verified: set[int]) -> list[dict[str, Any]]:
+                     all_decisions: list[Entry], environment_reads: list[Entry], verified: set[int]) -> list[dict[str, Any]]:
         plans_by_run = {
             (run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")): run.data.get("plan_id")
             for run in runs
         }
+        saw_by_run = {
+            (entry.data.get("tenant_id"), entry.data.get("grant_id"), entry.data.get("run_id")): entry.data.get("what_it_saw", {})
+            for entry in environment_reads
+        }
         rows = [
             {"id": run.row_id, "kind": "run", "created_at": run.created_at.isoformat(),
              "plan_id": run.data.get("plan_id"), "run_ref": run.data.get("run_ref"),
-             "source": run.data.get("source"), "status": run.data.get("status")}
+             "source": run.data.get("source"), "status": run.data.get("status"),
+             "what_it_saw": saw_by_run.get((run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")), {})}
             for run in runs
         ]
         rows.extend(

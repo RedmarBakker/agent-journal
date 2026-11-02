@@ -51,6 +51,7 @@ SUPERVISOR_ENTRY_TYPES = (
     "SupervisorWakeup",
     "SupervisorProposalDecision",
     "SupervisorProposalReceipt",
+    "SupervisorEnvironmentRead",
 )
 
 

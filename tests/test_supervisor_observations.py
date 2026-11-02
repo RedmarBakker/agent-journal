@@ -15,6 +15,12 @@ from journal.features.checks.support.finished_run import FinishedRun
 from journal.features.record.jobs.record_trim import RecordTrim
 from journal.features.supervisor.support.supervisor_observations import EVIDENCE_RETENTION_MS, OBSERVATION_ENTRY, SupervisorObservations
 from journal.features.supervisor.support.supervisor_episode_qualification import SupervisorEpisodeQualification
+from journal.features.supervisor.support.supervisor_environment_reader import (
+    ENVIRONMENT_READ_ENTRY,
+    ENVIRONMENT_SUMMARY_MAX_BYTES,
+    MAX_ENVIRONMENT_TASKS,
+)
+from journal.features.supervisor.support.supervisor_record_reader import SupervisorRecordReader
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.http.controllers.supervisor import SupervisorController
 from journal.http.support.identity import Identity
@@ -23,30 +29,43 @@ from journal.http.support.supervisor_authentication import SupervisorRequestAuth
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.entry import Entry
+from journal.models.message import Message
 from journal.models.phase import Phase
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
+from journal.models.sequence import Sequence
 from journal.models.template import Template
+from journal.models.trigger import Trigger
+from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
+from journal.models.support.worker_moves import WorkerMoves
+from journal.models.support.worker_silence import WorkerSilence
 from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.journal_backup import JournalBackup
 from journal.repositories.links import Links
+from journal.repositories.messages import Messages
 from journal.repositories.phases import PHASE_TASK_LINK, Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.supervisor_entries import SupervisorEntries
-from journal.repositories.tasks import Tasks
+from journal.repositories.sequences import Sequences
+from journal.repositories.tasks import CURRENT_TASK_LINK, Tasks
 from journal.repositories.templates import Templates
+from journal.repositories.triggers import Triggers
+from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.secret_values import SecretValues
 from journal.support.time_source import TimeSource
+from journal.support.timeout import Timeout
 from journal.supervisor_authority import SupervisorAuthority
 from tests.suite_app import SuiteApp
 
@@ -162,6 +181,96 @@ def stored_run(app, grant, run_ref="run-observation", epoch=2, fence=7):
                 "reservation": {"cost_usd": "0.001"}, "status": "admitted"},
             idempotency=f"test:run:{tenant}:{run_ref}"), actor)
     return run
+
+
+def test_observe_records_a_bounded_summary_of_only_the_watched_environment_plans(app, supervisor_fixture):
+    fixture = supervisor_fixture
+    grant, token, principal = enrolled(fixture)
+    run = stored_run(app, grant, run_ref="environment-summary", epoch=principal.scope["installation_epoch"])
+    scope = app.container.get(Scope)
+    actor = fixture["owner"]
+    plans = app.container.get(Plans)
+    links = app.container.get(Links)
+    tasks = app.container.get(Tasks)
+    with scope.environment(fixture["driver_environment"].row_id):
+        unwatched = plans.save(Plan(environment_id=fixture["driver_environment"].row_id,
+            title="unwatched plan", brief="another service", state=PlanState.STARTED, mode=PlanMode.SOLO), actor)
+        phase = app.container.get(Phases).save(Phase(environment_id=fixture["driver_environment"].row_id,
+            title="unwatched phase", completion_rule="complete its work"), actor)
+        unwatched_task = tasks.save(Task(environment_id=fixture["driver_environment"].row_id,
+            title="unwatched task", brief="inspect another service"), actor)
+        links.linked(Ref.build(phase), Ref.build(unwatched), PHASE_TASK_LINK, actor)
+        links.linked(Ref.build(unwatched_task), Ref.build(phase), PHASE_LINK, actor)
+        links.linked(Ref.build(unwatched_task), Ref.build(unwatched), PLAN_LINK, actor)
+
+    with scope.environment(fixture["owner_environment"].row_id):
+        blocked_task = tasks.save(Task(environment_id=fixture["owner_environment"].row_id,
+            title="blocked task", brief="wait for the health check", state=TaskState.BLOCKED,
+            block_reason="the health check has failed"), actor)
+        links.linked(Ref.build(blocked_task), Ref.build(fixture["phase"]), PHASE_LINK, actor)
+        links.linked(Ref.build(blocked_task), Ref.build(fixture["plan"]), PLAN_LINK, actor)
+        failed_check = app.container.get(Checks).save(Check(title="failed health check", last_passed=False,
+            last_output="failed"), actor)
+        links.linked(Ref.build(blocked_task), Ref.build(failed_check), "waits_on", actor)
+        for number in range(MAX_ENVIRONMENT_TASKS + 1):
+            open_task = tasks.save(Task(environment_id=fixture["owner_environment"].row_id,
+                title=f"bounded task {number}", brief="inspect the watched plan"), actor)
+            links.linked(Ref.build(open_task), Ref.build(fixture["phase"]), PHASE_LINK, actor)
+            links.linked(Ref.build(open_task), Ref.build(fixture["plan"]), PLAN_LINK, actor)
+        worker_task = tasks.save(Task(environment_id=fixture["owner_environment"].row_id,
+            title="worker task", brief="inspect the worker result", state=TaskState.STARTED), actor)
+        links.linked(Ref.build(worker_task), Ref.build(fixture["phase"]), PHASE_LINK, actor)
+        links.linked(Ref.build(worker_task), Ref.build(fixture["plan"]), PLAN_LINK, actor)
+        now = app.container.get(TimeSource).seconds()
+        worker = app.container.get(Workers).save(Worker(environment_id=fixture["owner_environment"].row_id,
+            name="watched worker", role="writer", plan_id=fixture["plan"].row_id, state=WorkerState.DISPATCHED,
+            silence=WorkerSilence(Timeout.minutes(10).started(now - 7)),
+            moves=WorkerMoves((("dispatched", now - 7),))), actor)
+        links.linked(Ref.build(worker), Ref.build(worker_task), CURRENT_TASK_LINK, actor)
+    with scope.environment(grant["driver_environment_id"]):
+        message = Message(text="Please inspect the watched plan").with_read_time(
+            datetime.fromtimestamp(app.container.get(TimeSource).seconds(), timezone.utc), 1, None,
+        )
+        message = app.container.get(Messages).save(message, actor)
+        sequence = app.container.get(Sequences).save(Sequence(title="environment sequence"), actor)
+        trigger = app.container.get(Triggers).save(Trigger(text="environment trigger", is_scheduled=True,
+            next_at=datetime.fromtimestamp(app.container.get(TimeSource).seconds(), timezone.utc)), actor)
+    response = observed(app, token, {
+        "protocol_version": 1, "run_id": run.data["run_ref"],
+        "installation_epoch": run.data["installation_epoch"], "fence": run.data["fence"], "cursor": None,
+    })
+
+    assert response.status == 200
+    environment = response.body["snapshot"]["environment"]
+    assert environment["plan_ids"] == [fixture["plan"].row_id], "the unwatched plan and its rows stay outside the summary"
+    assert environment["plans"][0]["plan_id"] == fixture["plan"].row_id
+    assert environment["phases"][0]["phase_id"] == fixture["phase"].row_id
+    assert environment["open_tasks"][0]["task_id"] == fixture["task"].row_id
+    assert environment["blocked_tasks"][0]["task_id"] == blocked_task.row_id
+    assert environment["waits"][0]["source_task_id"] == blocked_task.row_id
+    assert unwatched.row_id not in environment["plan_ids"] and unwatched_task.row_id not in {
+        row["task_id"] for row in [*environment["open_tasks"], *environment["blocked_tasks"]]
+    }
+    assert [row["check_id"] for row in environment["failing_checks"]] == [failed_check.row_id]
+    assert next(row for row in environment["workers"] if row["worker_id"] == worker.row_id)["seconds_since_heard"] == 7
+    assert [row["message_id"] for row in environment["unanswered_messages"]] == [message.row_id]
+    assert sequence.row_id in [row["sequence_id"] for row in environment["sequences"]]
+    assert trigger.row_id in [row["trigger_id"] for row in environment["triggers"]]
+    assert len(environment["open_tasks"]) == MAX_ENVIRONMENT_TASKS and environment["truncated"]["open_tasks"]
+    assert ["plans", "phases", "open_tasks", "blocked_tasks", "waits", "failing_checks", "workers",
+        "unanswered_messages", "sequences", "triggers"] == [
+        key for key in environment if key in {"plans", "phases", "open_tasks", "blocked_tasks", "waits",
+            "failing_checks", "workers", "unanswered_messages", "sequences", "triggers"}
+    ], "the summary contains each bounded environment view"
+    assert len(json.dumps(environment).encode("utf-8")) <= ENVIRONMENT_SUMMARY_MAX_BYTES
+    with scope.environment(PROJECT):
+        reads = app.container.get(Entries).supervisor_records(ENVIRONMENT_READ_ENTRY, last=5,
+            tenant_id=grant["scope"]["tenant_id"], grant_id=grant["grant_id"], run_id=run.data["run_ref"])
+    assert len(reads) == 1 and reads[0].data["what_it_saw"] == environment, "the returned environment summary is the saved What it saw record"
+    with scope.environment(fixture["owner_environment"].row_id):
+        history = app.container.get(SupervisorRecordReader).read("last_7_days", str(fixture["plan"].row_id), "", "")
+    run_row = next(row for row in history["records"] if row["kind"] == "run")
+    assert run_row["what_it_saw"] == environment, "the owner history row shows the environment summary the supervisor read"
 
 
 def observation_entry(app, grant, serial, epoch, committed_at_ms, output="evidence", expires_at_ms=None):
