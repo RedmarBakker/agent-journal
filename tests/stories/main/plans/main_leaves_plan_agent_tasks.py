@@ -96,6 +96,7 @@ def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_task(task, state=TaskState.OPEN)
     story.expect_task_unheld(task)
+    story.expect_state_data(idle_main, FollowingPlan, plan_id=plan, task_id=0)
 
     story.agent_stops(idle_main).expect_allowed(idle_main)
     story.expect_task(task, state=TaskState.OPEN)
