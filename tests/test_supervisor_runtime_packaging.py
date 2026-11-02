@@ -469,7 +469,7 @@ def test_plan_driver_socket_uses_a_server_and_driver_only_group():
     assert "shared_group" in inbox and "0o2770" in inbox and "0o660" in inbox
     assert 'Inbox(Path(self.data["socket"]), Path(self.data["announce"]), self.data.get("socket_group"))' in launch_file
     assert "PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP" in launch and '"socket_group"' in launch
-    assert manifest["topology"][0]["codex_driver"]["supervisor_socket"].startswith("/run/journal-plan-driver-supervisors/")
+    assert "/run/journal-plan-driver-supervisors/plan-<n>.sock" in manifest["topology"][0]["codex_driver"]["supervisor_socket"]
     assert "root:10031 mode 2770" in runbook and "journal uid 10001 and Plan driver uid 10003" in runbook
 
 
