@@ -1,6 +1,7 @@
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
 from journal.repositories.scope import PROJECT
 from journal.features.tasks.states.ready import Ready
+from journal.supervisor_authority import SupervisorAuthority
 from tests.in_process import posted
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.state_fixture import StateFixture
@@ -55,6 +56,11 @@ class SupervisorOwnerActionSetup(StateFixture):
 
     parent = WorkingAgent
     stack = (Ready,)
+
+    def restore_on(self, story) -> None:
+        super().restore_on(story)
+        authority = story.app.container.get(SupervisorAuthority)
+        story.monkeypatch.setattr(type(authority.agents), "is_running", lambda _self, _environment: True)
 
     def steps(self, story) -> None:
         self._owner_action_setup = prepare_owner_action(story)

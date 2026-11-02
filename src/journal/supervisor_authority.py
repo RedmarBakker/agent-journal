@@ -264,10 +264,12 @@ class SupervisorAuthority:
     def _record_replacement_grant(self, entry: Entry, grant: dict[str, Any], token: str,
                                   credential_name: str, context: dict[str, Any], actor: Actor) -> None:
         previous = self._grant_v2(entry, self._public_grant(entry))
+        legacy_capabilities = SupervisorGrant.from_version_one(grant).data()["capabilities"]
         version_two = {
             **previous,
             "owner_user_id": grant["owner_user_id"],
             "environment_id": grant["driver_environment_id"],
+            "capabilities": {**previous["capabilities"], **legacy_capabilities},
             "limits": grant["limits"],
             "valid_until_ms": grant["valid_until_ms"],
             "paused": False,
