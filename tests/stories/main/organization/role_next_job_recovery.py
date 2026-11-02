@@ -22,7 +22,7 @@ def test_a_role_with_an_ended_run_restarts_before_its_next_queued_task(story):
     )
     handoff.expect_command_passed()
     handoff.expect_command_text(f"task {next_task} routed from domain:alpha to role:alpha/builder")
-    handoff.expect_command_text(f"worker {worker} Builder task {next_task} queue: task {next_task}")
+    handoff.expect_command_text(f"worker {worker} Builder task {current_task} queue: task {next_task}")
 
     story.expect_worker(worker, state=WorkerState.DISPATCHED)
     story.expect_worker_role_job(worker, current_task, "- task 6 has its current brief", "- first is done")

@@ -1,10 +1,12 @@
 from journal.features.plans.plans_options import PlansOptions
+from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
+from journal.supervisor_link import SupervisorLink
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
@@ -74,6 +76,10 @@ def test_a_main_agent_cannot_complete_a_plan_agents_task(story):
 @story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
 def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent_runs(story):
     plan, task = story.plans.first, story.tasks.first
+    environment = story.app.container.get(AgentEnvironments).environments.existing(f"plan-{plan}")
+    story.monkeypatch.setattr(
+        SupervisorLink, "runs", lambda _link, environment_id: environment_id == environment.row_id,
+    )
     story.user_blocks_task(task, "the owner is waiting on a decision").expect_viewer_passed()
     story.expect_plan(plan, state=PlanState.BLOCKED)
 
