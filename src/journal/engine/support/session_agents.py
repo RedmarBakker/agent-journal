@@ -35,18 +35,29 @@ class SessionAgents:
 
     def row(self, session: str, environment_id: int, provider: str | None, role: AgentRole, started_at: datetime | None = None) -> Agent:
         rows = self.session_rows(session)
+        current = self.persistent_main_agent(environment_id)
+        if current and (not rows or rows[0].environment_id == environment_id):
+            return self.reused(current, session, environment_id, provider, started_at)
         if rows:
             current = rows[0]
             return self.agents.save(current.session_started(started_at), Actor.system()) if started_at and not current.session_started_at else current
         current = self.agents.environment_main_agent(environment_id)
         if current is not None:
-            if started_at and current.session and current.session != session:
-                self.takeovers.remember(environment_id, session, current.update_time)
-            changed = current.with_session(session, provider or current.provider)
-            if started_at:
-                changed = changed.session_started(started_at)
-            return self.agents.save(changed, Actor.system())
+            return self.reused(current, session, environment_id, provider, started_at)
         return self.created(session, environment_id, provider, Stack((self.states.first(),)), AgentRole.MAIN, started_at)
+
+    def persistent_main_agent(self, environment_id: int) -> Agent | None:
+        return next((agent for agent in self.agents.main_scoped(environment_id) if self.states.stack(agent).bottom().keeps_floor()), None)
+
+    def reused(self, current: Agent, session: str, environment_id: int, provider: str | None, started_at: datetime | None) -> Agent:
+        if current.session == session:
+            return self.agents.save(current.session_started(started_at), Actor.system()) if started_at and not current.session_started_at else current
+        if started_at and current.session:
+            self.takeovers.remember(environment_id, session, current.update_time)
+        changed = current.with_session(session, provider or current.provider)
+        if started_at:
+            changed = changed.session_started(started_at)
+        return self.agents.save(changed, Actor.system())
 
     def helper_agent(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
         rows = self.session_rows(session)

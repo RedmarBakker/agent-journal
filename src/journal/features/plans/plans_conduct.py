@@ -60,7 +60,7 @@ class PlansConduct(Conduct):
         if started is None:
             return self.none()
         testing = testing_lines(started)
-        if event.task_id or not started.remaining_tasks:
+        if event.task_id or started.has_next_task or not started.remaining_tasks:
             return self.none(*testing)
         return self.none(*testing, PlansNudges.PLAN_STALLED.create(n=event.plan_id, left=started.remaining_tasks))
 

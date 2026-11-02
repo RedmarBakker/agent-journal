@@ -110,7 +110,8 @@ class Plans(ScopedRepository[Plan]):
         return [plan for ref in self.links.sources(model, WAIT_LINK) if ref.type == Plan.table() and (plan := self.find(ref.id)).is_blocked()]
 
     def is_stalled(self, plan: Plan) -> bool:
-        return plan.is_stalled(self.remaining_count(plan), self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.BLOCKED)))
+        blocked = self.plan_task_query(plan).filter(state=TaskState.BLOCKED).filter_unequal("block_reason", self.plan_pause_block_reason(plan))
+        return plan.is_stalled(self.remaining_count(plan), self.tasks.counted(blocked))
 
     def remaining_count(self, plan: Plan) -> int:
         return self.tasks.counted(self.plan_task_query(plan).filter_unlisted("state", list(CLOSED_STATES)))

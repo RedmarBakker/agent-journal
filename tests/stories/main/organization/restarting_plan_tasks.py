@@ -1,4 +1,5 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
+from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
@@ -14,6 +15,7 @@ def test_a_user_restarting_an_organization_plan_opens_its_task_for_the_plan_seat
 
     started = story.user_starts_plan(plan)
     started.expect_viewer_passed()
+    started.expect_agent_not_told(story.agents.main, PlansNudges.PLAN_STALLED, n=plan)
     shown = story.agent_runs(story.agents.main, f"plan show {plan}")
     shown.expect_command_passed()
     story.expect_plan(plan, state=PlanState.STARTED)

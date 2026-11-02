@@ -64,6 +64,11 @@ class StoryChecks:
         reads = [self.api_row("messages", n)["text"] for n in range(newest, max(newest - within, 0), -1)]
         assert text in reads, f"none of the newest {within} messages reads {text!r}: {reads}"
 
+    def expect_message_text_in_environment(self, environment: str, text: str) -> None:
+        headers = {**MAIN, "X-Journal-Env": environment}
+        rows = get_answer(self.app, "/journal/messages", headers)[1]["rows"]
+        assert any(row.get("text") == text for row in rows), f"{environment} chat does not contain {text!r}: {[row.get('text') for row in rows]}"
+
     def expect_no_new_output(self) -> None:
         assert not self.shell_outputs, f"the command kept output {self.newest_output()}"
 
