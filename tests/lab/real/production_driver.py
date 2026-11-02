@@ -340,7 +340,7 @@ print(plan["plan_id"])
             if process.poll() is not None:
                 raise ValueError("isolated journal server stopped during startup")
             try:
-                with urlopen(f"http://127.0.0.1:{port}/journal/identity", timeout=1) as answer:
+                with urlopen(f"http://127.0.0.1:{port}/journal/identity", timeout=5) as answer:
                     identity = json.load(answer)
                 if identity.get("root") == str((paths["project"] / ".journal").resolve()) and identity.get("pid") == process.pid:
                     return {**identity, "run_id": run_id, "launch_id": launch_id, "challenge": challenge,
