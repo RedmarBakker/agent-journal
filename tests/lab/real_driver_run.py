@@ -195,6 +195,167 @@ def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
         assert driver.boundary.close()
 
 
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
+                    reason="process liveness isolation uses macOS sandbox-exec")
+def test_sandbox_can_signal_and_inspect_its_own_child_process(tmp_path):
+    root = tmp_path / "private-run"
+    boundary = ProductionBoundary("run-1", (32001,),
+                                  (Path(sys.executable).resolve().parent, Path(sys.prefix).resolve()))
+    paths = IsolatedJournal.paths(root, boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "tmp", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    ProductionDriver.install_process_inspector(paths)
+    code = (
+        "import os, subprocess, sys\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'], "
+        "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+        "try:\n"
+        "    os.kill(child.pid, 0)\n"
+        "    result = subprocess.run(['ps', '-o', 'state=', '-p', str(child.pid)], "
+        "capture_output=True, text=True, check=True)\n"
+        "    if not result.stdout.strip() or result.stdout.strip().startswith('Z'):\n"
+        "        raise SystemExit('the child process state was not readable')\n"
+        "    print('alive')\n"
+        "finally:\n"
+        "    if child.poll() is None:\n"
+        "        child.terminate()\n"
+        "        child.wait(timeout=5)\n"
+    )
+
+    environment = {**os.environ, "HOME": str(paths["private_home"]), "TMPDIR": str(paths["tmp"]),
+                   "PATH": f"{paths['bin']}:/usr/bin:/bin", "PYTHONNOUSERSITE": "1",
+                   "PYTHONDONTWRITEBYTECODE": "1"}
+    try:
+        boundary.verify("run-1", paths)
+        policy = boundary.profile.read_text(encoding="utf-8")
+        completed = subprocess.run(boundary.wrap([sys.executable, "-c", code]), cwd=paths["project"],
+                                   env=environment, capture_output=True, text=True, timeout=10, check=False)
+
+        assert '(allow signal (target same-sandbox))' in policy
+        assert '(allow process-info* (target same-sandbox))' in policy
+        assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
+        assert completed.stdout.strip() == "alive"
+    finally:
+        assert boundary.close()
+
+
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None
+                    or shutil.which("node") is None,
+                    reason="OpenRig child liveness uses macOS sandbox-exec and Node")
+def test_stand_in_openrig_confirms_detached_child_liveness_under_its_real_boundary(
+        tmp_path, monkeypatch):
+    root = tmp_path / "private-run"
+    source = Path(__file__).resolve().parents[2]
+    cli_directory = tmp_path / "agent-clis"
+    cli_directory.mkdir(mode=0o700)
+    provider = cli_directory / "claude"
+    provider.write_text(
+        "#!/usr/bin/env node\n"
+        "if (process.argv.includes('--version')) console.log('stand-in-claude 1.0');\n"
+        "else process.exit(7);\n",
+        encoding="utf-8",
+    )
+    provider.chmod(0o700)
+    rig = cli_directory / "rig"
+    rig.write_text(
+        "#!/usr/bin/env node\n"
+        "const fs = require('node:fs');\n"
+        "const { execFileSync, spawn } = require('node:child_process');\n"
+        "const path = require('node:path');\n"
+        "async function start() {\n"
+        "  const childCode = `process.on('SIGTERM', () => { "
+        "require('node:fs').writeFileSync(process.env.OPENRIG_HOME + '/signal-received', 'stopped'); "
+        "process.exit(0); }); setTimeout(() => {}, 2500)`;\n"
+        "  const child = spawn(process.execPath, ['-e', childCode], "
+        "{ detached: true, stdio: 'ignore' });\n"
+        "  child.unref();\n"
+        "  try {\n"
+        "    process.kill(child.pid, 0);\n"
+        "    const state = execFileSync('ps', ['-o', 'state=', '-p', String(child.pid)], "
+        "{ encoding: 'utf8' }).trim();\n"
+        "    if (!state || state.startsWith('Z')) throw new Error('daemon child state was not readable');\n"
+        "    fs.writeFileSync(path.join(process.env.OPENRIG_HOME, 'liveness-proof'), 'alive ' + state);\n"
+        "    fs.writeFileSync(path.join(process.env.OPENRIG_HOME, 'daemon.pid'), String(child.pid));\n"
+        "  } finally {\n"
+        "    if (!fs.existsSync(path.join(process.env.OPENRIG_HOME, 'daemon.pid'))) child.kill('SIGKILL');\n"
+        "  }\n"
+        "}\n"
+        "async function stop() {\n"
+        "  const pid = Number(fs.readFileSync(path.join(process.env.OPENRIG_HOME, 'daemon.pid'), 'utf8'));\n"
+        "  process.kill(pid, 'SIGTERM');\n"
+        "  let alive = true;\n"
+        "  for (let attempt = 0; attempt < 100 && alive; attempt++) {\n"
+        "    try {\n"
+        "      process.kill(pid, 0);\n"
+        "      let state = '';\n"
+        "      try { state = execFileSync('ps', ['-o', 'state=', '-p', String(pid)], "
+        "{ encoding: 'utf8' }).trim(); } catch { state = ''; }\n"
+        "      alive = Boolean(state) && !state.startsWith('Z');\n"
+        "    } catch (error) {\n"
+        "      if (error.code !== 'ESRCH') throw error;\n"
+        "      alive = false;\n"
+        "    }\n"
+        "    if (alive) await new Promise(resolve => setTimeout(resolve, 20));\n"
+        "  }\n"
+        "  if (alive) throw new Error('daemon child did not stop');\n"
+        "  for (let attempt = 0; attempt < 100 && !fs.existsSync(path.join(process.env.OPENRIG_HOME, 'signal-received')); attempt++) "
+        "await new Promise(resolve => setTimeout(resolve, 20));\n"
+        "  if (!fs.existsSync(path.join(process.env.OPENRIG_HOME, 'signal-received'))) "
+        "throw new Error('daemon child did not receive the stop signal');\n"
+        "  fs.writeFileSync(path.join(process.env.OPENRIG_HOME, 'daemon-stopped'), 'stopped');\n"
+        "}\n"
+        "if (process.argv[2] !== 'daemon') process.exit(8);\n"
+        "if (process.argv[3] === 'start') start().catch(error => { console.error(error); process.exitCode = 1; });\n"
+        "else if (process.argv[3] === 'stop') stop().catch(error => { "
+        "fs.writeFileSync(path.join(process.env.OPENRIG_HOME, 'stop-error'), String(error)); "
+        "console.error(error); process.exitCode = 1; });\n"
+        "else process.exit(9);\n",
+        encoding="utf-8",
+    )
+    rig.chmod(0o700)
+    tmux = cli_directory / "tmux"
+    tmux.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    tmux.chmod(0o700)
+    node = Path(shutil.which("node")).resolve()
+    executables = {"claude": provider, "rig": rig, "tmux": tmux}
+    monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
+    manifest = SimpleNamespace(data=lambda: {"design": {"settings": {}}})
+    driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
+                              ProductionWatchdog())
+    paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    (paths["project"] / "src").mkdir()
+    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    stopped = False
+    try:
+        driver.boundary.verify("run-1", paths)
+        IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+        driver.env = driver.child_environment(paths, driver.journal_port)
+        assert driver.probe_agent_cli(paths) == {"provider": "claude", "version": "stand-in-claude 1.0"}
+        driver.start_openrig(paths)
+
+        proof = Path(driver.env["OPENRIG_HOME"]) / "liveness-proof"
+        process_inspector = paths["bin"] / "ps"
+        assert proof.read_text(encoding="utf-8").startswith("alive ")
+        assert (paths["bin"] / "node").resolve() == node
+        assert process_inspector.is_file()
+        assert process_inspector.read_text(encoding="utf-8").startswith(f"#!{sys.executable}\n")
+        assert "proc_pidinfo" in process_inspector.read_text(encoding="utf-8")
+        assert f'(allow process-exec (literal {json.dumps(str(process_inspector))}))' in (
+            driver.boundary.profile.read_text(encoding="utf-8")
+        )
+        assert driver.rig_started
+    finally:
+        stopped = driver.stop_owned()
+        if not stopped:
+            driver.boundary.close()
+
+    assert stopped, (Path(driver.env["OPENRIG_HOME"]) / "stop-error").read_text(encoding="utf-8")
+    assert (Path(driver.env["OPENRIG_HOME"]) / "daemon-stopped").read_text(encoding="utf-8") == "stopped"
+
+
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None
                     or shutil.which("node") is None,
                     reason="Node CLI probe uses macOS sandbox-exec and the installed Node interpreter")

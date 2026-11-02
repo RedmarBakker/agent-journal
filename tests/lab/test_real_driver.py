@@ -66,12 +66,15 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
 
     environment = driver.child_environment(paths, driver.journal_port)
+    driver.env = environment
 
     assert environment["CLAUDE_CONFIG_DIR"] == str(profile)
-    assert environment["HOME"] == str(paths["private_home"].resolve())
+    assert environment["HOME"] == environment["OPENRIG_HOME"]
+    assert Path(environment["OPENRIG_DB"]).parent == Path(environment["OPENRIG_HOME"])
     assert "ANTHROPIC_API_KEY" not in environment
     assert "OPENAI_API_KEY" not in environment
     assert environment["TMUX_TMPDIR"] == str(driver.boundary.tmux_tmpdir)
+
 
 
 def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatcher_first(tmp_path, monkeypatch):
@@ -159,6 +162,12 @@ def test_production_boundary_policy_only_allows_run_storage_and_local_provider_p
     assert '(allow file-read* (literal "/"))' in policy
     assert '(allow file-read* (literal "/private/var/select/sh"))' in policy
     assert "(allow file-write*)" not in policy
+    assert '(allow signal (target same-sandbox))' in policy
+    assert '(allow process-info* (target same-sandbox))' in policy
+    assert f'(allow process-exec (literal {json.dumps(str(root / "home" / "bin" / "ps"))}))' in policy
+    assert "(allow signal)" not in policy
+    assert "(allow process-info*)" not in policy
+    assert "(allow process-exec)" not in policy
     assert 'remote ip "localhost:32001"' in policy
     assert 'remote ip "localhost:32002"' in policy
     assert "github.com" not in policy

@@ -150,6 +150,7 @@ class RealRun:
             plan_id = self.driver.prepare_plan(scenario, paths)
             tmux_preflight = self.driver.preflight_tmux(paths)
             agent_cli_probe = self.driver.probe_agent_cli(paths)
+            self.driver.start_openrig(paths)
             setup = {
                 "run_id": run_id,
                 "status": "ready",
@@ -191,6 +192,7 @@ class RealRun:
         if isolation is None:
             raise ValueError("setup-only isolation evidence is missing")
         setup["isolation_observation"] = isolation.to_document()
+        setup["openrig_daemon"] = "started_and_stopped"
         setup["setup_seconds"] = max(0.0, monotonic() - start)
         return True, self.journal.write_document(paths, "setup-only.json", setup)
 

@@ -23,6 +23,7 @@ from tests.lab.real.run_record_store import RunRecordStore
 from tests.lab.real.run_real_batch import RunRealBatch
 
 JOURNAL_STARTUP_SECONDS = 180
+OPENRIG_STARTUP_SECONDS = 60
 
 
 class ProductionDriver:
@@ -63,6 +64,9 @@ class ProductionDriver:
         self.env: dict[str, str] = {}
         self.caps = None
         self.rig_started = False
+        self.rig_process: subprocess.Popen | None = None
+        self.rig_stop_request: Path | None = None
+        self.rig_stop_confirmation: Path | None = None
         self.token = secrets.token_urlsafe(32)
         self.stopped = False
         self.watchdog.register(self)
@@ -118,12 +122,15 @@ class ProductionDriver:
         self.install_executable(paths, provider, cli)
         self.install_executable(paths, "rig", rig)
         self.install_executable(paths, "tmux", tmux)
+        self.install_process_inspector(paths)
         path_entries = tuple(dict.fromkeys((cli.parent, rig.parent, tmux.parent, Path("/usr/bin"),
                                             Path("/bin"), Path("/opt/homebrew/bin"))))
         env = IsolatedJournal(paths["root"], self.checkout).child_environment(
             paths, os.environ, ("PATH", "LANG", "LC_ALL", "TERM"), (), port,
             "agent", secrets.token_urlsafe(32), path_entries,
         )
+        openrig_home = paths["runtime"] / "openrig"
+        openrig_home.mkdir(mode=0o700, exist_ok=True)
         hook = paths["runtime"] / "cap-hook.py"
         source = Path(__file__).with_name("cap_hook.py")
         hook.write_text(f"#!{sys.executable}\n" + source.read_text(encoding="utf-8"), encoding="utf-8")
@@ -132,7 +139,9 @@ class ProductionDriver:
             "JOURNAL_LAB_CAP_HOOK": str(hook),
             "JOURNAL_LAB_CAP_URL": f"http://127.0.0.1:{self.cap_port}/event",
             "JOURNAL_LAB_CAP_TOKEN": self.token,
-            "OPENRIG_HOME": str(paths["runtime"] / "openrig"),
+            "HOME": str(openrig_home),
+            "OPENRIG_HOME": str(openrig_home),
+            "OPENRIG_DB": str(openrig_home / "openrig.db"),
             "OPENRIG_URL": f"http://127.0.0.1:{self.rig_port}",
             "HTTPS_PROXY": f"http://127.0.0.1:{self.proxy_port}",
             "HTTP_PROXY": f"http://127.0.0.1:{self.proxy_port}",
@@ -160,9 +169,32 @@ class ProductionDriver:
         for name, interpreter in self.cli_interpreters.items():
             self.install_executable(paths, name, interpreter)
 
+    @staticmethod
+    def install_process_inspector(paths: Mapping[str, Path]) -> Path:
+        target = paths["bin"] / "ps"
+        if target.exists() or target.is_symlink():
+            raise ValueError("the isolated process inspector already exists")
+        target.write_text(
+            f"#!{sys.executable}\n"
+            "import ctypes\n"
+            "import sys\n"
+            "if len(sys.argv) != 5 or sys.argv[1:4] != ['-o', 'state=', '-p']:\n"
+            "    raise SystemExit(2)\n"
+            "buffer = ctypes.create_string_buffer(1024)\n"
+            "libproc = ctypes.CDLL('/usr/lib/libproc.dylib')\n"
+            "libproc.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]\n"
+            "libproc.proc_pidinfo.restype = ctypes.c_int\n"
+            "size = libproc.proc_pidinfo(int(sys.argv[4]), 3, 0, buffer, len(buffer))\n"
+            "if size < 8:\n"
+            "    raise SystemExit(1)\n"
+            "print('Z' if ctypes.c_uint32.from_buffer(buffer, 4).value == 5 else 'S')\n",
+            encoding="utf-8",
+        )
+        target.chmod(0o700)
+        return target
+
     def prepare_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> str:
         setup = self.setup_scenario(scenario, paths)
-        (paths["runtime"] / "openrig").mkdir(mode=0o700, exist_ok=True)
         return str(setup["plan_id"])
 
     def preflight_tmux(self, paths: Mapping[str, Path]) -> str:
@@ -186,19 +218,50 @@ class ProductionDriver:
         plan_id = self.prepare_plan(scenario, paths)
         self.install_agent_interpreters(paths)
         self.preflight_tmux(paths)
-        rig = self.executable("rig")
-        if not rig:
-            raise ValueError("OpenRig CLI is required for an organization-mode run")
-        start = self.command([str(rig), "daemon", "start", "--host", "127.0.0.1", "--port", str(self.rig_port),
-                              "--db", str(paths["runtime"] / "openrig.db"), "--no-kernel"], paths)
-        if start.returncode:
-            raise ValueError(start.stderr.strip() or "private OpenRig daemon did not start")
-        self.rig_started = True
+        self.start_openrig(paths)
         journal = [sys.executable, str(paths["project"] / "src" / "journal.py")]
         started = self.command([*journal, "plan", "start", plan_id], paths)
         if started.returncode:
             raise ValueError(started.stderr.strip() or "journal refused to start the approved plan")
         return plan_id
+
+    def start_openrig(self, paths: Mapping[str, Path]) -> None:
+        rig = self.executable("rig")
+        if not rig:
+            raise ValueError("OpenRig CLI is required for an organization-mode run")
+        home = Path(self.env["OPENRIG_HOME"])
+        supervisor = paths["runtime"] / "openrig-supervisor.py"
+        shutil.copyfile(Path(__file__).with_name("openrig_supervisor.py"), supervisor)
+        supervisor.chmod(0o700)
+        self.rig_stop_request = home / "stop-requested"
+        self.rig_stop_confirmation = home / "stop-confirmed"
+        stdout = (paths["runtime"] / "openrig-supervisor.stdout.log").open("ab")
+        stderr = (paths["runtime"] / "openrig-supervisor.stderr.log").open("ab")
+        command = self.boundary.wrap([sys.executable, str(supervisor), str(paths["bin"] / "rig"),
+                                      str(home), str(self.rig_port), self.env["OPENRIG_DB"]])
+        with stdout, stderr:
+            process = subprocess.Popen(command, cwd=paths["project"], env=self.env,
+                                       stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
+                                       start_new_session=True)
+        self.paths = paths
+        self.rig_process = process
+        self.processes.append(process)
+        self.rig_started = True
+        deadline = time.monotonic() + OPENRIG_STARTUP_SECONDS
+        start_confirmation = home / "start-confirmed"
+        while time.monotonic() < deadline:
+            if start_confirmation.is_file():
+                return
+            if process.poll() is not None:
+                break
+            time.sleep(0.1)
+        raise ValueError(self.openrig_startup_failure(paths))
+
+    @staticmethod
+    def openrig_startup_failure(paths: Mapping[str, Path]) -> str:
+        error = paths["runtime"] / "openrig-supervisor.stderr.log"
+        detail = error.read_text(encoding="utf-8").strip() if error.is_file() else ""
+        return detail or "isolated OpenRig daemon did not confirm startup"
 
     def wait_for_end_or_cap(self, _run_id: str, plan_id: str, caps) -> str:
         while True:
@@ -244,13 +307,18 @@ class ProductionDriver:
         if self.proxy:
             self.proxy.close()
             self.proxy = None
-        rig = self.executable("rig") if self.rig_started else None
-        if rig and self.env.get("OPENRIG_HOME"):
-            stopped = subprocess.run(self.boundary.wrap([str(rig), "daemon", "stop"]), env=self.env,
-                                     cwd=self.paths.get("project"), stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL, timeout=10, check=False)
-            confirmed = stopped.returncode == 0
+        if self.rig_started and self.rig_process and self.rig_stop_request and self.rig_stop_confirmation:
+            if self.rig_process.poll() is None:
+                self.rig_stop_request.write_text("stop\n", encoding="utf-8")
+                try:
+                    self.rig_process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    confirmed = False
+            confirmed = (confirmed and self.rig_process.poll() is not None
+                         and self.rig_process.returncode == 0 and self.rig_stop_confirmation.is_file())
             self.rig_started = not confirmed
+            if confirmed:
+                self.rig_process = None
         for process in self.processes:
             if process.poll() is not None:
                 continue

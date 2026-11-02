@@ -121,7 +121,8 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
     def driver_factory(run_id, spec):
         driver = SimpleNamespace(run_id=run_id, spec=spec, process=None, session_id=f"session-{run_id}", caps=None,
                                  event_server=None, cap_token="stand-in-cap-token",
-                                 plan_started=False, plan_prepared=False, tmux_preflight_called=False)
+                                 plan_started=False, plan_prepared=False, tmux_preflight_called=False,
+                                 openrig_started=False, openrig_stopped=False, rig_started=False, events=[])
         drivers[run_id] = driver
         factory_calls.append(run_id)
 
@@ -141,6 +142,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
 
         def start_plan(_scenario, paths, caps):
             driver.plan_started = True
+            start_openrig(paths)
             if not driver.spec.get("simulate_live_hook_cap"):
                 caps.start_session(driver.session_id)
             child = journal.child_environment(
@@ -168,7 +170,13 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
             return f"plan-{driver.run_id}"
 
         def probe_agent_cli(_paths):
+            driver.events.append("agent-cli-probe")
             return {"provider": driver.spec["provider"], "version": "stand-in-cli 1.0"}
+
+        def start_openrig(_paths):
+            driver.openrig_started = True
+            driver.rig_started = True
+            driver.events.append("openrig-start")
 
         def preflight_tmux(_paths):
             driver.tmux_preflight_called = True
@@ -203,6 +211,10 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
             if owner == run_id and driver.process and driver.process.poll() is None:
                 os.killpg(driver.process.pid, 15)
                 driver.process.wait(timeout=2)
+            if driver.rig_started:
+                driver.openrig_stopped = True
+                driver.rig_started = False
+                driver.events.append("openrig-stop")
             return True
 
         def read_record(current_run_id):
@@ -217,6 +229,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         driver.prepare_plan = prepare_plan
         driver.preflight_tmux = preflight_tmux
         driver.probe_agent_cli = probe_agent_cli
+        driver.start_openrig = start_openrig
         driver.wait_for_end_or_cap = wait_for_end_or_cap
         driver.stop_owned = lambda current_run_id: stop(current_run_id, "run finished")
         driver.read_record = read_record
@@ -322,6 +335,7 @@ def test_run_real_setup_only_prepares_every_root_without_starting_an_agent_or_pr
         driver = drivers[setup["run_id"]]
         assert setup["status"] == "ready"
         assert setup["agent_started"] is False and setup["provider_started"] is False
+        assert setup["openrig_daemon"] == "started_and_stopped"
         assert setup["tmux_preflight"] == "ready"
         assert setup["agent_cli_probe"] == {"provider": driver.spec["provider"], "version": "stand-in-cli 1.0"}
         assert setup["journal_commit"] == JOURNAL_COMMIT and setup["organization_commit"] == ORGANIZATION_COMMIT
@@ -329,7 +343,44 @@ def test_run_real_setup_only_prepares_every_root_without_starting_an_agent_or_pr
         assert (evidence_file.parent / "isolation-observation.json").is_file()
         assert driver.plan_prepared is True and driver.plan_started is False
         assert driver.tmux_preflight_called is True
+        assert driver.openrig_started and driver.openrig_stopped
+        assert driver.events == ["agent-cli-probe", "openrig-start", "openrig-stop"]
         assert driver.process is None and driver.event_server is None
+
+
+def test_run_real_setup_only_stops_the_daemon_after_isolation_observation_fails(
+        tmp_path, monkeypatch, capsys):
+    stand_in = tmp_path / "stand-in-provider.py"
+    stand_in.write_text("raise SystemExit('provider must not start')\n", encoding="utf-8")
+    manifest = batch_manifest(run_count=1)
+    service, batch_folder, _factory_calls, _profiles, drivers = isolated_batch(
+        tmp_path, monkeypatch, manifest, stand_in,
+    )
+    original_boundary_factory = service.boundary_factory
+
+    def boundary_factory(run_id):
+        boundary = original_boundary_factory(run_id)
+
+        def observe(_run_id):
+            raise ValueError("stand-in isolation observation failed")
+
+        boundary.observe = observe
+        return boundary
+
+    service.boundary_factory = boundary_factory
+    _approval, receipt = owner_receipt(manifest)
+    setup_home = tmp_path / "setup-only-failure"
+
+    assert run_real_setup_cli(service, batch_folder, manifest, receipt, setup_home) == 1
+
+    failure_path = Path(capsys.readouterr().out.strip())
+    failure = json.loads(failure_path.read_text(encoding="utf-8"))
+    driver = drivers["run-1"]
+    assert failure["terminal_reason"] == "setup_failed"
+    assert "stand-in isolation observation failed" in failure["reason"]
+    assert driver.openrig_started and driver.openrig_stopped
+    assert driver.events == ["agent-cli-probe", "openrig-start", "openrig-stop"]
+    assert driver.rig_started is False
 
 
 @pytest.mark.parametrize("receipt_state", ("missing", "expired"))
