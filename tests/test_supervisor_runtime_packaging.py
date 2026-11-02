@@ -583,7 +583,9 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert "return bool(self._latest_entries())" in authority
     assert 'if TOKEN_FILE.exists():' in require_runtime
     assert "if plan_id := existing_plan_id(existing):\n        return resume_plan(app, main, plan_id)" in make_plan
-    assert "return plan_id, setup_check_id(app), setup_template_id(app)" in resume
+    assert "check_id = setup_check_id(app, seed)" in resume
+    assert "return plan_id, check_id, setup_template_id(app)" in resume
+    assert resume.count("return ") == 1
 
 
 def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollment():

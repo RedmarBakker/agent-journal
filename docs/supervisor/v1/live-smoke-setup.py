@@ -180,16 +180,16 @@ def resume_plan(app, main, plan_id, seed=None):
         plan = plans.find(plan_id)
         phases = plans.plan_phases(plan)
         tasks = plans.plan_tasks(plan)
-    if seed is None and not setup_plan_matches(plan, phases, tasks):
-        raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
-    if seed is not None and not setup_plan_matches(plan, phases, tasks, seed):
+    if seed is None:
+        if not setup_plan_matches(plan, phases, tasks):
+            raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
+    elif not setup_plan_matches(plan, phases, tasks, seed):
         raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
     authority = app.container.get(SupervisorAuthority)
     if authority.has_enrollment_grant():
         raise SetupFailure("a supervisor enrollment grant already exists in this writer")
-    if seed is None:
-        return plan_id, setup_check_id(app), setup_template_id(app)
-    return plan_id, setup_check_id(app, seed), setup_template_id(app)
+    check_id = setup_check_id(app, seed)
+    return plan_id, check_id, setup_template_id(app)
 
 
 def existing_plan_id(output, seed=None):
