@@ -1,16 +1,17 @@
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
 from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.supervisor_grant_capabilities import configure_grant_capabilities
 from tests.stories.fixtures.main.supervisor_grant_cli_role import SupervisorGrantCliRole
 
 
-def owner_sets_decision(story, command: str, decision: str):
+def owner_sets_decision(story, command: str, decision: str, version: int = 2):
     return story.user_presses("/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": story.grants.first,
-        "expected_grant_version": 2,
+        "expected_grant_version": version,
         "change": {"kind": "decision", "command": command, "decision": decision},
     }, f"the owner sets {command} to {decision.replace('_', ' ')}")
 
@@ -101,6 +102,36 @@ def test_an_owner_can_allow_a_tier_three_plan_cancel_to_act(story):
     control = story.user_opens_in(story.supervisor_owner_environment, "/journal/supervisor/control")
     control.expect_viewer_passed()
     expect_control_catalogue(control, {"plan cancel": "may_act"})
+    story.expect_stack(story.agents.subject)
+
+
+@story(SupervisorGrantCliRole, subject=AgentRole.SUPERVISOR)
+def test_an_owner_sets_tier_three_decisions_and_cannot_change_its_own_grant(story):
+    refused = owner_sets_decision(story, "plan approve", "not_allowed")
+    refused.expect_viewer_passed()
+    refused.expect_viewer_part(("grant_version",), 3)
+    result = story.supervisor_runs_command(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_refused()
+    result.expect_command_text("the capability is switched off")
+    story.expect_row_in(story.supervisor_owner_environment, "plans", story.plans.first, {"state": PlanState.STARTED})
+
+    allowed = owner_sets_decision(story, "plan cancel-phase", "may_act", 3)
+    allowed.expect_viewer_passed()
+    allowed.expect_viewer_part(("grant_version",), 4)
+    result = story.supervisor_runs_command(
+        story.agents.subject, f'plan cancel-phase {story.plans.first} 1 --why "the owner allowed this"',
+    )
+    result.expect_command_passed()
+    story.expect_task_in(story.supervisor_owner_environment, story.tasks.first, TaskState.CANCELLED)
+
+    baseline = story.supervisor_grant_mutation_baseline()
+    refused = owner_sets_decision(story, "grant change", "may_act", 4)
+    refused.expect_viewer_refused("Never")
+    story.expect_supervisor_grant_mutation_wrote_nothing(baseline)
+    story.expect_supervisor_grant_state(story.grants.first, False, False)
+    control = story.user_opens_in(story.supervisor_owner_environment, "/journal/supervisor/control")
+    control.expect_viewer_passed()
+    expect_control_catalogue(control, {"plan approve": "not_allowed", "plan cancel-phase": "may_act"})
     story.expect_stack(story.agents.subject)
 
 

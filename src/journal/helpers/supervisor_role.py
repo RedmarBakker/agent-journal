@@ -26,7 +26,7 @@ class SupervisorRole(MainRole):
     @classmethod
     def refusal(cls, command: type[Command], args, caller: Caller) -> str:
         reason = cls.refusal_reason(command, args.verb, caller, args)
-        return f"a supervisor may not run journal {command.noun} {args.verb}: {reason}"
+        return f"a supervisor may not run journal {command.noun} {cls.catalogue_verb(args.verb)}: {reason}"
 
     @classmethod
     def refusal_reason(cls, command: type[Command], verb: str, caller: Caller, args) -> str:
@@ -35,15 +35,16 @@ class SupervisorRole(MainRole):
             return "its current grant is unavailable"
         if verb in cls.READ_VERBS or command.noun == "search" and verb == "find":
             return ""
-        rule = grant.rule_for(f"{command.noun} {verb}", cls.row_id(command, args))
+        catalogue_verb = cls.catalogue_verb(verb)
+        rule = grant.rule_for(f"{command.noun} {catalogue_verb}", cls.row_id(command, args))
         if rule is not None:
             if rule.effect == "never":
                 return "the owner refuses this verb on the named row"
             return "the owner requires this verb to be proposed"
         capabilities = dict((name, (enabled, mode)) for name, enabled, mode in grant.capabilities)
-        capability = f"{command.noun} {verb}"
-        catalogue_entry = capability_entry(command.noun, verb)
-        tier = tier_for_command(command.noun, verb)
+        capability = f"{command.noun} {catalogue_verb}"
+        catalogue_entry = capability_entry(command.noun, catalogue_verb)
+        tier = tier_for_command(command.noun, catalogue_verb)
         if catalogue_entry is None or tier is None:
             return "the capability is switched off"
         area, _ = catalogue_entry
@@ -70,6 +71,10 @@ class SupervisorRole(MainRole):
         if command.noun == "plan" and verb in {"priorities", "tell"}:
             return cls.plan_scope_refusal(grant, args)
         return ""
+
+    @staticmethod
+    def catalogue_verb(verb: str) -> str:
+        return verb.replace("_", "-")
 
     @staticmethod
     def row_id(command: type[Command], args) -> int | None:
