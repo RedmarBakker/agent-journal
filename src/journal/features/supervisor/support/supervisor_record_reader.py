@@ -742,6 +742,7 @@ class SupervisorRecordReader:
             {"id": run.row_id, "kind": "run", "created_at": run.created_at.isoformat(),
              "plan_id": run.data.get("plan_id"), "run_ref": run.data.get("run_ref"),
              "source": run.data.get("source"), "status": run.data.get("status"),
+             "wake_kind": run.data.get("wake_kind"), "event_kind": run.data.get("event_kind"),
              "what_it_saw": saw_by_run.get((run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")), {})}
             for run in runs
         ]
@@ -749,7 +750,8 @@ class SupervisorRecordReader:
             {"id": wake.row_id, "kind": "wake", "created_at": wake.created_at.isoformat(),
              "plan_id": wake.data.get("plan_id"), "wake_kind": wake.data.get("wake_kind"),
              "source": wake.data.get("source"), "status": wake.data.get("status"),
-             "reason": wake.data.get("reason"), "interval_minutes": wake.data.get("interval_minutes")}
+             "reason": wake.data.get("reason"), "interval_minutes": wake.data.get("interval_minutes"),
+             "event_kind": wake.data.get("event_kind")}
             for wake in wakes
         )
         rows.extend(

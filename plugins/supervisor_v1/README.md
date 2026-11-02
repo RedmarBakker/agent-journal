@@ -2,7 +2,7 @@
 
 This source-controlled package is outside `.journal/plugins` and is not installed or enabled by deployment packaging. The manifest uses the existing journal plugin service lifecycle: `PluginServices` starts/stops `bridge`, `PluginHealth` checks its Unix health socket, and the `when` condition keeps it off until an owner/operator creates `STAGING_AUTHORIZED` in the plugin data directory.
 
-The service spools only task/check row references and timestamps to the dedicated `supervisor_hints` volume. It does not read journal rows, credentials or source files and does not call a model or apply journal mutations. Gateway mounts the spool read-only. A later runtime adapter consumes the hints through the shared journal admission route; timer and hints must use that same route. Until the private routes, the task-111 stdio client, bounded cost controls, and B10 isolation checks exist, keep the plugin uninstalled and enrollment disabled.
+The service spools only bounded row references, event kinds and timestamps to the dedicated `supervisor_hints` volume. It does not read journal rows, credentials or source files and does not call a model or apply journal mutations. Gateway mounts the spool read-only and its event watcher sends each classified hint through the same journal admission route as scheduled wakes. The grant decides which event kinds can wake the supervisor. Keep the plugin uninstalled and enrollment disabled until authorized staging.
 
 An owner/operator may install the package in authorized disposable staging only after reviewing the manifest and runbook:
 

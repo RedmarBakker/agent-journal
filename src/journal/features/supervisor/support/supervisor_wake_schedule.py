@@ -63,6 +63,29 @@ class SupervisorWakeSchedule:
             idempotency=key,
         ), Actor.plugin(SUPERVISOR_ACTOR))
 
+    def record_event(self, principal: SupervisorPrincipal, grant: dict[str, Any], event_kind: str,
+                     event_id: str, result: dict[str, Any]) -> None:
+        key = f"supervisor:wake:{grant['grant_id']}:event:{event_id}"
+        self.control_entries.recorded(Entry(
+            environment_id=PROJECT,
+            entry_type="SupervisorWake",
+            actor=Actor.plugin(SUPERVISOR_ACTOR),
+            data={
+                "tenant_id": principal.scope["tenant_id"],
+                "environment_id": principal.scope["environment_id"],
+                "grant_id": grant["grant_id"],
+                "grant_version": grant["grant_version"],
+                "plan_id": grant["plan_id"],
+                "wake_kind": "event",
+                "source": "hint",
+                "event_kind": event_kind,
+                "event_id": event_id,
+                "status": result["status"],
+                "reason": result.get("reason", ""),
+            },
+            idempotency=key,
+        ), Actor.plugin(SUPERVISOR_ACTOR))
+
     def row_event_marker(self, principal: SupervisorPrincipal) -> int:
         return self.environment_reader.change_marker(principal)
 

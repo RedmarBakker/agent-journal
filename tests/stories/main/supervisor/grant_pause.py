@@ -18,7 +18,7 @@ def grant_change(story, version: int, kind: str) -> dict:
 def test_an_owner_pauses_the_grant_and_a_wake_does_nothing(story):
     wake = story.supervisor_posts("/_supervisor/v1/admit", {
         "protocol_version": 1, "source": "timer", "observation_cursor": None,
-        "wakeup_id": "paused-wakeup-1", "kind": "scheduled",
+        "wakeup_id": "paused-timer-wakeup-1", "kind": "scheduled",
     })
     wake.expect_viewer_refused("supervisor grant is paused")
     action = story.supervisor_posts("/_supervisor/v1/apply", {})
@@ -37,7 +37,7 @@ def test_an_owner_turns_the_paused_grant_on_and_wakes_resume(story):
 
     wake = story.supervisor_posts("/_supervisor/v1/admit", {
         "protocol_version": 1, "source": "timer", "observation_cursor": None,
-        "wakeup_id": "resumed-wakeup-1", "kind": "scheduled",
+        "wakeup_id": "resumed-timer-wakeup-1", "kind": "scheduled",
     })
     wake.expect_viewer_text("skipped")
     story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)

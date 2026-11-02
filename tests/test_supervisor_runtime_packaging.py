@@ -870,7 +870,7 @@ def test_gateway_entrypoint_and_reconcile_share_one_secret_environment():
     assert "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json" in environment
     assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN OPENCLAW_CONFIG_PATH" in environment
     assert ". /opt/journal-supervisor/bin/journal-supervisor-bridge-environment" in environment
-    assert "export JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR" in bridge_environment
+    assert "export JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR JOURNAL_SUPERVISOR_HINTS_DIRECTORY" in bridge_environment
     assert "--env" not in reconcile
     assert "JOURNAL_SUPERVISOR_STATE_DIR=" not in entrypoint and "JOURNAL_SUPERVISOR_STATE_DIR=" not in reconcile
 
@@ -1074,6 +1074,9 @@ def test_plugin_is_uninstalled_guarded_and_uses_plugin_health_contract():
     assert service["answers"] is True
     assert manifest["health"]["socket_env"] == "SUPERVISOR_HEALTH_SOCKET"
     assert manifest["health"]["answer"] == '{"health":"up","service":"<name>"}'
+    assert set(manifest["hears"]) >= {
+        "check_failed", "task_test_failed", "worker_silent", "messages.created", "question_posed",
+    }
     assert not (ROOT / ".journal" / "plugins" / "supervisor-v1").exists()
 
 
@@ -1098,6 +1101,43 @@ def test_event_bridge_spools_only_allowed_row_references(tmp_path: Path):
     assert hint_with_extra_field is not None
     assert set(hint_with_extra_field) == {"v", "event", "at", "environment", "table", "id"}
     assert "body" not in hint_with_extra_field
+
+
+def test_event_bridge_classifies_supervisor_wakes_without_storing_event_contents():
+    examples = (
+        ("check_failed", {"check_id": 4}, "checks", "failed_check", 4),
+        ("task_test_failed", {"task_id": 5, "output_id": 8, "outcome": "private"}, "tasks", "stalled_task", 5),
+        ("worker_silent", {"worker": {"id": 6, "name": "private"}, "minutes": 10}, "workers", "stale_worker", 6),
+        ("messages.created", {"table": "messages", "id": 7, "by": "user"}, "messages", "message_to_supervisor", 7),
+        ("question_posed", {"question_id": 9}, "questions", "question_to_supervisor", 9),
+    )
+
+    for event_name, data, table, event_kind, row_id in examples:
+        event = {"event": event_name, "at": "2026-10-29T10:00:00+00:00", "environment": "pilot", "data": data}
+        hint = bridge_service.hint_from(json.dumps(event))
+
+        assert hint["table"] == table
+        assert hint["id"] == str(row_id)
+        assert hint["event_kind"] == event_kind
+        assert "private" not in json.dumps(hint)
+
+
+def test_gateway_starts_the_read_only_event_hint_watcher():
+    entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
+    bridge_environment = (PROFILE / "journal-supervisor-bridge-environment.sh").read_text()
+
+    assert "/opt/journal-supervisor/bin/journal-supervisor-bridge watch-events" in entrypoint
+    assert "JOURNAL_SUPERVISOR_HINTS_DIRECTORY=/var/lib/journal-supervisor/hints" in bridge_environment
+
+
+def test_admission_contract_carries_an_optional_event_identity():
+    schema = read_json(PROFILE / "contract.schema.json")["$defs"]["AdmissionRequest"]
+
+    assert schema["properties"]["event_kind"]["enum"] == [
+        "failed_check", "stalled_task", "stale_worker", "message_to_supervisor", "question_to_supervisor",
+    ]
+    assert schema["properties"]["event_id"]["maxLength"] == 128
+    assert schema["dependentRequired"] == {"event_kind": ["event_id"], "event_id": ["event_kind"]}
 
 
 def test_event_spool_drops_hints_at_its_bound(tmp_path: Path, monkeypatch):

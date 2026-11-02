@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.supervisor.supervisor_scheduled_wake import SupervisorScheduledWake
@@ -6,6 +8,7 @@ from tests.stories.fixtures.supervisor.supervisor_scheduled_wake import Supervis
 def scheduled_wake(story):
     return story.supervisor_posts("/_supervisor/v1/admit", {
         "protocol_version": 1, "source": "timer", "observation_cursor": None,
+        "wakeup_id": uuid4().hex, "kind": "scheduled",
     })
 
 

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -22,6 +23,7 @@ from journal.features.supervisor.support.supervisor_environment_reader import Su
 from journal.features.supervisor.support.supervisor_wake_schedule import SupervisorWakeSchedule
 from journal.models.check import Check
 from journal.models.entry import Entry
+from journal.models.supervisor_grant import EVENT_WAKEUPS
 from journal.repositories.entries import Entries
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
@@ -70,7 +72,8 @@ class SupervisorObservations:
         qualification = self.episode_qualifier.qualify(grant, installation_epoch)
         snapshot = {**snapshot, "environment": environment, "environment_read_id": environment_read_id,
             "episode_qualification": qualification,
-            "progress_watermark_ms": qualification["progress_watermark_ms"]}
+            "progress_watermark_ms": qualification["progress_watermark_ms"],
+            "wake": self._wake_context(run)}
         page = self._page(grant, installation_epoch, request["cursor"])
         return {
             "protocol_version": 1,
@@ -87,6 +90,12 @@ class SupervisorObservations:
             grant = self.authority.revalidate(principal)
             if request["source"] == "timer":
                 return self._scheduled_admission(principal, grant, request)
+            if "event_kind" in request:
+                if request["event_kind"] not in grant["event_wakeups"]:
+                    return self._skipped("event_disabled")
+                result = self._admit(principal, grant, request)
+                self.wake_schedule.record_event(principal, grant, request["event_kind"], request["event_id"], result)
+                return result
             return self._admit(principal, grant, request)
 
     def _scheduled_admission(self, principal: SupervisorPrincipal, grant: dict[str, Any],
@@ -109,11 +118,17 @@ class SupervisorObservations:
         if epoch != principal.scope["installation_epoch"]:
             return self._skip(grant, request, "stale_evidence")
         qualification = self.episode_qualifier.qualify(grant, epoch)
-        reason = self._admission_reason(grant, qualification)
+        reason = self._admission_reason(grant, qualification, request.get("event_kind", ""))
         if reason:
             return self._skip(grant, request, reason)
+        if request.get("event_kind"):
+            qualification = {
+                **qualification,
+                "episode_id": qualification.get("episode_id") or f"event-{request['event_id']}",
+                "observation_ids": qualification.get("observation_ids", []),
+            }
         evidence = self.action_evidence(principal, grant, epoch, qualification["observation_ids"])
-        if request["observation_cursor"] is not None:
+        if request["observation_cursor"] is not None and not request.get("event_kind"):
             filters = self._observation_filters(grant, epoch)
             cursor_id = self._cursor_id(request["observation_cursor"], filters)
             if not any(entry.row_id > cursor_id for entry in evidence):
@@ -449,7 +464,9 @@ class SupervisorObservations:
                 "fence": fence,
                 "lease_until": lease_until.isoformat(),
                 "day": day,
-                "source": request["source"],
+                "source": "event" if request.get("event_kind") else request["source"],
+                "wake_kind": "event" if request.get("event_kind") else "scheduled" if request["source"] == "timer" else "hint",
+                "event_kind": request.get("event_kind"),
                 "observation_cursor": request["observation_cursor"],
                 "observation_ids": [entry.data["observation_id"] for entry in evidence],
                 "budget_reservation_id": f"supervisor-reservation:{run_id}",
@@ -488,9 +505,16 @@ class SupervisorObservations:
             return self._skip(grant, wakeup_request, "stale_evidence")
         return {"status": "admitted", "run": self._run_result(run, epoch)}
 
-    def _admission_reason(self, grant: dict[str, Any], qualification: dict[str, Any]) -> str:
+    def _admission_reason(self, grant: dict[str, Any], qualification: dict[str, Any], event_kind: str = "") -> str:
         if qualification.get("status") == "needs_owner":
             return "needs_owner"
+        if event_kind:
+            context = self.authority.observation_context(grant)
+            gates = context["gates"]
+            if (gates["explicit_owner_pause"] or gates["reserved_checkpoint"] or gates["ended_drive"]
+                    or gates["pending_owner_decision"] or gates["unpassed_phase_commands"]):
+                return "needs_owner"
+            return ""
         if qualification.get("status") == "empty":
             return "empty"
         if qualification.get("status") != "actionable_stall" or not qualification.get("observation_ids"):
@@ -501,6 +525,11 @@ class SupervisorObservations:
                 or gates["pending_owner_decision"] or gates["unpassed_phase_commands"]):
             return "needs_owner"
         return ""
+
+    @staticmethod
+    def _wake_context(run: Entry) -> dict[str, Any]:
+        kind = run.data.get("wake_kind", "scheduled" if run.data.get("source") == "timer" else "hint")
+        return {"kind": kind, "event_kind": run.data.get("event_kind")}
 
     def _observation_filters(self, grant: dict[str, Any], epoch: int) -> dict[str, Any]:
         return {"tenant_id": grant["scope"]["tenant_id"], "project_id": grant["scope"]["project_id"],
@@ -555,7 +584,8 @@ class SupervisorObservations:
 
     def _admission_request(self, body: object) -> dict[str, Any]:
         expected = {"protocol_version", "source", "observation_cursor", "wakeup_id", "kind"}
-        if (not isinstance(body, dict) or set(body) != expected
+        event_fields = {"event_kind", "event_id"}
+        if (not isinstance(body, dict) or set(body) not in (expected, expected | event_fields)
                 or type(body["protocol_version"]) is not int or body["protocol_version"] != 1
                 or body["source"] not in ("timer", "hint")
                 or not isinstance(body["wakeup_id"], str) or not 1 <= len(body["wakeup_id"]) <= 256
@@ -566,6 +596,12 @@ class SupervisorObservations:
                 or body["observation_cursor"] is not None
                 and (not isinstance(body["observation_cursor"], str) or len(body["observation_cursor"]) > 256)):
             raise SupervisorFailure(400, "the supervisor admission request is invalid")
+        if "event_kind" in body:
+            if (body["source"] != "hint" or not isinstance(body["event_kind"], str)
+                    or body["event_kind"] not in EVENT_WAKEUPS
+                    or not isinstance(body["event_id"], str)
+                    or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", body["event_id"])):
+                raise SupervisorFailure(400, "the supervisor event wake request is invalid")
         return body
 
     def _skip(self, grant: dict[str, Any], request: dict[str, Any], reason: str) -> dict[str, str]:

@@ -10,6 +10,7 @@ from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_ope
 
 from supervisor_bridge.contracts import (
     ROUTES,
+    EVENT_WAKE_KINDS,
     RunReference,
     bounded_cursor,
     bounded_text,
@@ -188,7 +189,7 @@ class SupervisorHttpClient:
         self.connection = connection
 
     def admit(self, source: str, observation_cursor: str | None, wakeup_id: str | None = None,
-              kind: str | None = None) -> dict:
+              kind: str | None = None, event_kind: str | None = None, event_id: str | None = None) -> dict:
         if source not in {"timer", "hint"}:
             raise TransportError("admission source is not enabled")
         bounded_cursor(observation_cursor)
@@ -198,13 +199,20 @@ class SupervisorHttpClient:
             raise TransportError("admission kind does not match its source")
         wakeup_id = wakeup_id or uuid.uuid4().hex
         bounded_text(wakeup_id, "wakeup_id", 1, 256)
-        return self.connection.post(ROUTES["admit"], {
+        body = {
             "protocol_version": 1,
             "source": source,
             "observation_cursor": observation_cursor,
             "wakeup_id": wakeup_id,
             "kind": kind,
-        })
+        }
+        if event_kind is not None or event_id is not None:
+            if (source != "hint" or not isinstance(event_kind, str)
+                    or event_kind not in EVENT_WAKE_KINDS
+                    or not isinstance(event_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", event_id)):
+                raise TransportError("event admission requires a fixed kind and id")
+            body |= {"event_kind": event_kind, "event_id": event_id}
+        return self.connection.post(ROUTES["admit"], body)
 
     def record_wakeup(self, wakeup_id: str, kind: str, result: str, skip_reason: str = "") -> dict:
         bounded_text(wakeup_id, "wakeup_id", 1, 256)

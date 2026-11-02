@@ -21,6 +21,10 @@ DEFAULT_LEASE_SECONDS = 300
 MONEY_UNIT = Decimal("0.000001")
 MILLION = Decimal("1000000")
 TERMINAL_RUN_STATES = ("complete", "conflicted", "rejected")
+SUPERVISOR_INPUT_RATE_PER_MILLION = Decimal("2")
+SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION = Decimal("4")
+SUPERVISOR_CACHE_READ_RATE_PER_MILLION = Decimal("0.2")
+SUPERVISOR_OUTPUT_RATE_PER_MILLION = Decimal("10")
 
 
 def digest(value: str) -> str:
@@ -69,6 +73,24 @@ def decimal_amount(value: object) -> Decimal | None:
 def cost(input_tokens: int, output_tokens: int, input_rate: Decimal, output_rate: Decimal) -> Decimal:
     total = (Decimal(input_tokens) * input_rate + Decimal(output_tokens) * output_rate) / MILLION
     return total.quantize(MONEY_UNIT, rounding=ROUND_CEILING)
+
+
+def supervisor_usage_cost_microusd(usage: Mapping[str, int]) -> int:
+    total = (
+        Decimal(usage["input_tokens"]) * SUPERVISOR_INPUT_RATE_PER_MILLION
+        + Decimal(usage["cache_creation_input_tokens"]) * SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION
+        + Decimal(usage["cache_read_input_tokens"]) * SUPERVISOR_CACHE_READ_RATE_PER_MILLION
+        + Decimal(usage["output_tokens"]) * SUPERVISOR_OUTPUT_RATE_PER_MILLION
+    )
+    return int(total.quantize(Decimal("1"), rounding=ROUND_CEILING))
+
+
+def supervisor_run_reservation_microusd(input_tokens: int, output_tokens: int) -> int:
+    worst_case = (
+        Decimal(input_tokens) * SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION
+        + Decimal(output_tokens) * SUPERVISOR_OUTPUT_RATE_PER_MILLION
+    )
+    return int(worst_case.quantize(Decimal("1"), rounding=ROUND_CEILING))
 
 
 def action_receipt_key(tenant_id: str, action_id: str) -> str:

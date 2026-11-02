@@ -5,7 +5,16 @@
   "description": "Spools task and check row references for the private supervisor runtime.",
   "protocol": 1,
   "program": "answer.py",
-  "hears": ["tasks.created", "checks.created", "checks.updated"],
+  "hears": [
+    "tasks.created",
+    "checks.created",
+    "checks.updated",
+    "check_failed",
+    "task_test_failed",
+    "worker_silent",
+    "messages.created",
+    "question_posed"
+  ],
   "services": [
     {
       "name": "bridge",

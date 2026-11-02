@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
+from supervisor_bridge.event_hints import EventHintDirectory
 from supervisor_bridge.mcp import McpServer
 from supervisor_bridge.metering import (
     AnthropicProviderTransport,
@@ -17,6 +18,7 @@ from supervisor_bridge.state import DEFAULT_STATE_DIR, StateStore
 from supervisor_bridge.transport import JsonHttpConnection, OpenClawHookClient, SupervisorHttpClient, TransportError
 
 PROXY_STARTUP_SECONDS = 10
+EVENT_HINT_POLL_SECONDS = 1
 
 
 def state_directory() -> Path:
@@ -41,6 +43,35 @@ def hook_client() -> OpenClawHookClient | None:
     return OpenClawHookClient(os.environ.get("JOURNAL_SUPERVISOR_HOOK_URL", "http://127.0.0.1:18789"), token)
 
 
+def configured_bridge(state: StateStore) -> SupervisorBridge:
+    config_path = os.environ.get("OPENCLAW_CONFIG_PATH", "/home/node/.openclaw/openclaw.json")
+    proof = MeteredAggregateBudgetProof(state, config_path)
+    return SupervisorBridge(service_client(), state, proof, hook_client())
+
+
+def process_event_hints(bridge: SupervisorBridge, hints: EventHintDirectory) -> None:
+    for hint in hints.pending():
+        event_id = hint["event_id"]
+        if not hint["event_kind"]:
+            hints.acknowledge(event_id)
+            continue
+        result = bridge.reconcile(
+            "hint", wakeup_id=event_id, event_kind=hint["event_kind"], event_id=event_id,
+        )
+        if result.status in {"skipped", "hook_acknowledged"}:
+            hints.acknowledge(event_id)
+
+
+def watch_events() -> int:
+    state = StateStore(state_directory())
+    bridge = configured_bridge(state)
+    directory = Path(os.environ.get("JOURNAL_SUPERVISOR_HINTS_DIRECTORY", "/var/lib/journal-supervisor/hints"))
+    hints = EventHintDirectory(directory, state.directory / "processed-event-hints.json")
+    while True:
+        process_event_hints(bridge, hints)
+        time.sleep(EVENT_HINT_POLL_SECONDS)
+
+
 def run(command: list[str]) -> int:
     if command == ["proxy"]:
         state = StateStore(state_directory())
@@ -57,9 +88,7 @@ def run(command: list[str]) -> int:
     if command == ["reconcile"]:
         state = StateStore(state_directory())
         try:
-            config_path = os.environ.get("OPENCLAW_CONFIG_PATH", "/home/node/.openclaw/openclaw.json")
-            proof = MeteredAggregateBudgetProof(state, config_path)
-            bridge = SupervisorBridge(service_client(), state, proof, hook_client())
+            bridge = configured_bridge(state)
         except ValueError as error:
             state.record_failure("service_unauthorized" if "token" in str(error) else "service_unavailable", False)
             print(json.dumps({"status": "failed", "reason": "configuration_unavailable"}, separators=(",", ":")))
@@ -67,7 +96,10 @@ def run(command: list[str]) -> int:
         result = bridge.reconcile("timer")
         print(json.dumps(result.to_dict(), separators=(",", ":")))
         return 0 if result.status in {"skipped", "blocked", "admitted", "hook_acknowledged"} else 1
-    print("journal-supervisor-bridge accepts only proxy, wait-for-proxy, mcp or reconcile", file=sys.stderr)
+    if command == ["watch-events"]:
+        watch_events()
+        return 0
+    print("journal-supervisor-bridge accepts only proxy, wait-for-proxy, mcp, reconcile or watch-events", file=sys.stderr)
     return 2
 
 

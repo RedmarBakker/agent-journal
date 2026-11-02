@@ -8,12 +8,15 @@ from pathlib import Path
 PINNED_OPENCLAW_VERSION = "2026.10.8"
 PINNED_OPENCLAW_COMMIT = "dc2523e5a5c7a309517fd7fa834add938231d526"
 CONTRACT_VERSION = 1
-CONTRACT_SCHEMA_SHA256 = "fbf6deb9707f2209753b6b4450bf26890b4abaf28fc54d828474731dba88e359"
+CONTRACT_SCHEMA_SHA256 = "dd543f35c79a9932c543a07f837d2f95767bca345321c13667426dc1d4ddd5c1"
 TOOL_NAMES = (
     "journal_supervisor.observe",
     "journal_supervisor.apply_maintenance",
     "journal_supervisor.receipt",
 )
+EVENT_WAKE_KINDS = frozenset({
+    "failed_check", "stalled_task", "stale_worker", "message_to_supervisor", "question_to_supervisor",
+})
 OPENCLAW_TOOL_NAMES = (
     "journal__journal_supervisor-observe",
     "journal__journal_supervisor-apply_maintenance",

@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import hashlib
 import json
 from io import BytesIO
 from pathlib import Path
@@ -27,6 +28,7 @@ from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
+from supervisor_bridge.event_hints import EventHintDirectory
 from supervisor_bridge.contracts import (
     FIXTURE_PATH,
     METERED_PROVIDER_API_KEY_PLACEHOLDER,
@@ -100,8 +102,10 @@ class StubJournal:
         self.observations = list(observations or [])
         self.calls = []
 
-    def admit(self, source, observation_cursor, wakeup_id=None, kind=None):
-        self.calls.append(("admit", source, observation_cursor, wakeup_id, kind))
+    def admit(self, source, observation_cursor, wakeup_id=None, kind=None, event_kind=None, event_id=None):
+        call = ("admit", source, observation_cursor)
+        call += (wakeup_id, kind)
+        self.calls.append(call if event_kind is None else (*call, event_kind, event_id))
         if self.admissions:
             return self.admissions.pop(0)
         return {"status": "skipped", "reason": "empty"}
@@ -371,6 +375,94 @@ def test_hints_and_timer_share_one_admission(tmp_path):
     bridge.reconcile("timer")
 
     assert [call[:3] for call in journal.calls] == [("admit", "hint", None), ("admit", "timer", None)]
+
+
+def test_event_hint_uses_shared_admission_with_its_fixed_kind_and_id(tmp_path):
+    journal = StubJournal([{"status": "skipped", "reason": "empty"}])
+    bridge = SupervisorBridge(journal, StateStore(tmp_path))
+
+    result = bridge.reconcile(
+        "hint", wakeup_id="a" * 64, event_kind="failed_check", event_id="a" * 64,
+    )
+
+    assert result.status == "skipped" and result.reason == "empty"
+    assert journal.calls == [(
+        "admit", "hint", None, "a" * 64, "checks.updated", "failed_check", "a" * 64,
+    )]
+
+
+def test_supervisor_client_sends_the_event_identity_with_a_hint():
+    opener = StubOpener([b'{"status":"skipped","reason":"empty"}'])
+    connection = JsonHttpConnection("http://127.0.0.1:9134", "journal-service-token")
+    connection.opener = opener
+    client = SupervisorHttpClient(connection)
+
+    client.admit("hint", None, "a" * 64, "checks.updated", "failed_check", "a" * 64)
+
+    request = opener.requests[0][0]
+    assert json.loads(request.data) == {
+        "protocol_version": 1,
+        "source": "hint",
+        "observation_cursor": None,
+        "wakeup_id": "a" * 64,
+        "kind": "checks.updated",
+        "event_kind": "failed_check",
+        "event_id": "a" * 64,
+    }
+
+
+def test_event_hint_directory_remembers_consumed_event_files(tmp_path):
+    directory = tmp_path / "hints"
+    directory.mkdir()
+    hint = {
+        "v": "1", "event": "check_failed", "at": "2026-10-29T10:00:00+00:00",
+        "environment": "pilot", "table": "checks", "id": "4", "event_kind": "failed_check",
+    }
+    body = json.dumps(hint, sort_keys=True, separators=(",", ":"))
+    event_id = hashlib.sha256(body.encode()).hexdigest()
+    (directory / f"{event_id}.json").write_text(body)
+    queue = EventHintDirectory(directory, tmp_path / "state" / "processed-hints.json")
+
+    assert queue.pending() == [{"event_id": event_id, "event_kind": "failed_check", "at": hint["at"]}]
+    queue.acknowledge(event_id)
+
+    assert queue.pending() == []
+
+
+def test_gateway_event_consumer_admits_enabled_hints_and_acknowledges_skips(tmp_path):
+    class HintQueue:
+        def __init__(self):
+            self.items = [
+                {"event_id": "a" * 64, "event_kind": "failed_check", "at": "t1"},
+                {"event_id": "b" * 64, "event_kind": "", "at": "t2"},
+                {"event_id": "c" * 64, "event_kind": "stale_worker", "at": "t3"},
+            ]
+            self.acknowledged = []
+
+        def pending(self):
+            return self.items
+
+        def acknowledge(self, event_id):
+            self.acknowledged.append(event_id)
+
+    class Bridge:
+        def __init__(self):
+            self.calls = []
+            self.statuses = ["skipped", "failed"]
+
+        def reconcile(self, source, kind=None, wakeup_id=None, event_kind=None, event_id=None):
+            self.calls.append((source, kind, wakeup_id, event_kind, event_id))
+            return SimpleNamespace(status=self.statuses.pop(0))
+
+    queue, bridge = HintQueue(), Bridge()
+
+    supervisor_main.process_event_hints(bridge, queue)
+
+    assert bridge.calls == [
+        ("hint", None, "a" * 64, "failed_check", "a" * 64),
+        ("hint", None, "c" * 64, "stale_worker", "c" * 64),
+    ]
+    assert queue.acknowledged == ["a" * 64, "b" * 64]
 
 
 def test_hint_spool_deduplicates_and_bounds_row_references(tmp_path):

@@ -77,15 +77,21 @@ class SupervisorBridge:
         self.budget = budget or NoAggregateBudgetProof()
         self.hook = hook
 
-    def reconcile(self, source: str, kind: str | None = None, wakeup_id: str | None = None) -> ReconcileResult:
+    def reconcile(self, source: str, kind: str | None = None, wakeup_id: str | None = None,
+                  event_kind: str | None = None, event_id: str | None = None) -> ReconcileResult:
         if source not in {"hint", "timer"}:
             raise ContractError("reconcile source is not enabled")
         kind = kind or ("scheduled" if source == "timer" else "checks.updated")
         if kind != "scheduled" and kind not in ROW_EVENTS or source == "timer" and kind != "scheduled" or source == "hint" and kind == "scheduled":
             raise ContractError("reconcile kind does not match its source")
+        if (source == "timer" and (event_kind is not None or event_id is not None)
+                or (event_kind is None) != (event_id is None)):
+            raise ContractError("event reconcile requires a hint kind and id")
         wakeup_id = wakeup_id or uuid.uuid4().hex
         try:
-            admission = self.client.admit(source, self.state.observation_cursor(), wakeup_id, kind)
+            admission = self.client.admit(
+                source, self.state.observation_cursor(), wakeup_id, kind, event_kind, event_id,
+            )
         except AuthorizationError as error:
             self.state.record_failure("service_unauthorized", False, error.cause)
             return ReconcileResult("failed", "service_unauthorized")
@@ -106,7 +112,7 @@ class SupervisorBridge:
             reason = admission.get("reason")
             if set(admission) != {"status", "reason"} or not isinstance(reason, str) or reason not in {
                 "empty", "busy", "ineligible", "stale_evidence", "budget_exhausted", "unknown_cost", "revoked",
-                "needs_owner", "scheduled_interval_not_elapsed", "quiet",
+                "needs_owner", "scheduled_interval_not_elapsed", "quiet", "event_disabled",
             }:
                 self.state.record_failure("service_rejected", False)
                 return ReconcileResult("failed", "invalid_admission")

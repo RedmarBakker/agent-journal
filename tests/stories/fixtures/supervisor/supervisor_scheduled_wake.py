@@ -1,3 +1,4 @@
+from journal.engine.clock import Clock
 from journal.repositories.environments import Environments
 from journal.support.time_source import TimeSource
 from journal.supervisor_authority import SupervisorAuthority
@@ -11,12 +12,20 @@ class SupervisorScheduledWake(SupervisorGrantFixture):
 
     parent = NewSession
     valid_for_minutes = 180
+    event_wakeups = ("failed_check",)
+    pinned_at: float | None = None
+    limit_overrides: dict[str, int] = {}
 
     def steps(self, story) -> None:
         self.restore_on(story)
+        if self.pinned_at is not None:
+            story.app.container.get(TimeSource).pin(self.pinned_at)
+            story.app.container.get(Clock).held_at = self.pinned_at
         fixture = seeded(story.app, owner_id=1)
         authority = story.app.container.get(SupervisorAuthority)
         request = enrollment(fixture, "shadow")
+        request["event_wakeups"] = list(self.event_wakeups)
+        request["limits"].update(self.limit_overrides)
         request["valid_until_ms"] = int((story.app.container.get(TimeSource).seconds() + self.valid_for_minutes * 60) * 1000)
         grant, token = authority.enroll(fixture["owner"], request)
         fixture["credentials"].append(authority._credential_name(grant["grant_id"], grant["grant_version"]))

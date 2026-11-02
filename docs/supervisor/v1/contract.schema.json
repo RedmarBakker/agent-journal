@@ -479,6 +479,21 @@
             "checks.updated",
             "checks.deleted"
           ]
+        },
+        "event_kind": {
+          "enum": [
+            "failed_check",
+            "stalled_task",
+            "stale_worker",
+            "message_to_supervisor",
+            "question_to_supervisor"
+          ]
+        },
+        "event_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
         }
       },
       "required": [
@@ -487,6 +502,20 @@
         "observation_cursor",
         "wakeup_id",
         "kind"
+      ],
+      "dependentRequired": {
+        "event_kind": ["event_id"],
+        "event_id": ["event_kind"]
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"source": {"const": "timer"}}},
+          "then": {"not": {"required": ["event_kind"]}}
+        },
+        {
+          "if": {"required": ["event_kind"]},
+          "then": {"properties": {"source": {"const": "hint"}}}
+        }
       ]
     },
     "WakeupRequest": {
@@ -627,7 +656,10 @@
                 "budget_exhausted",
                 "unknown_cost",
                 "revoked",
-                "needs_owner"
+                "needs_owner",
+                "scheduled_interval_not_elapsed",
+                "quiet",
+                "event_disabled"
               ]
             }
           },
@@ -1641,6 +1673,18 @@
           },
           "uniqueItems": true,
           "maxItems": 12
+        },
+        "wake": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["scheduled", "hint", "event"]},
+            "event_kind": {
+              "type": ["string", "null"],
+              "enum": [null, "failed_check", "stalled_task", "stale_worker", "message_to_supervisor", "question_to_supervisor"]
+            }
+          },
+          "required": ["kind", "event_kind"]
         }
       },
       "required": [
@@ -1657,7 +1701,8 @@
         "eligible_current_phase_task_ids",
         "checks",
         "writable",
-        "ineligibility_reasons"
+        "ineligibility_reasons",
+        "wake"
       ]
     },
     "ObserveResult": {

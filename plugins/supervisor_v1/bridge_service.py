@@ -10,7 +10,14 @@ from pathlib import Path
 from socketserver import StreamRequestHandler, ThreadingUnixStreamServer
 
 
-ALLOWED_EVENTS = {"tasks.created", "checks.created", "checks.updated"}
+EVENT_WAKE_KINDS = {
+    "check_failed": ("checks", "failed_check", "check_id"),
+    "task_test_failed": ("tasks", "stalled_task", "task_id"),
+    "worker_silent": ("workers", "stale_worker", ("worker", "id")),
+    "messages.created": ("messages", "message_to_supervisor", "id"),
+    "question_posed": ("questions", "question_to_supervisor", "question_id"),
+}
+ALLOWED_EVENTS = {"tasks.created", "checks.created", "checks.updated", *EVENT_WAKE_KINDS}
 HEALTH_ANSWER = '{"health":"up","service":"bridge"}'
 HINTS_DIRECTORY = Path("/var/lib/journal-supervisor/hints")
 MAX_HINTS = 1000
@@ -29,15 +36,30 @@ def hint_from(line: str) -> dict[str, str] | None:
     if not isinstance(data, dict):
         return None
     event_name = event["event"]
-    table = event_name.split(".", 1)[0]
-    row_id = data.get("id")
+    table, wake_kind, identifier = EVENT_WAKE_KINDS.get(
+        event_name, (event_name.split(".", 1)[0], "", "id"),
+    )
+    row_id = _event_row_id(data, identifier) if wake_kind else data.get("id")
     environment = event.get("environment")
     occurred_at = event.get("at")
-    if data.get("table") != table or not isinstance(row_id, str) or not row_id:
+    model_event = not wake_kind or event_name.endswith(".created")
+    valid_row = (type(row_id) is int and row_id > 0) or isinstance(row_id, str) and bool(row_id)
+    if not valid_row or model_event and data.get("table") != table:
         return None
     if not isinstance(environment, str) or not isinstance(occurred_at, str):
         return None
-    return {"v": "1", "event": event_name, "at": occurred_at, "environment": environment, "table": table, "id": row_id}
+    hint = {"v": "1", "event": event_name, "at": occurred_at, "environment": environment,
+            "table": table, "id": str(row_id)}
+    if wake_kind:
+        hint["event_kind"] = wake_kind
+    return hint
+
+
+def _event_row_id(data: dict[str, object], identifier: str | tuple[str, str]) -> object:
+    if isinstance(identifier, tuple):
+        nested = data.get(identifier[0])
+        return nested.get(identifier[1]) if isinstance(nested, dict) else None
+    return data.get(identifier)
 
 
 def write_hint(directory: Path, hint: dict[str, str]) -> Path | None:

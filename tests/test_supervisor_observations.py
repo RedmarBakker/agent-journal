@@ -13,6 +13,7 @@ from journal.features.checks.support.check_output import CheckOutput
 from journal.features.checks.support.check_runner import CheckRunner
 from journal.features.checks.support.finished_run import FinishedRun
 from journal.features.record.jobs.record_trim import RecordTrim
+from journal.features.supervisor.support.admissions import supervisor_usage_cost_microusd
 from journal.features.supervisor.support.supervisor_observations import EVIDENCE_RETENTION_MS, OBSERVATION_ENTRY, SupervisorObservations
 from journal.features.supervisor.support.supervisor_episode_qualification import SupervisorEpisodeQualification
 from journal.features.supervisor.support.supervisor_environment_reader import (
@@ -68,6 +69,20 @@ from journal.support.time_source import TimeSource
 from journal.support.timeout import Timeout
 from journal.supervisor_authority import SupervisorAuthority
 from tests.suite_app import SuiteApp
+
+
+def test_supervisor_usage_cost_prices_each_token_bucket_in_microdollars():
+    usage = {
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "cache_creation_input_tokens": 1,
+        "cache_read_input_tokens": 1,
+        "total_input_tokens": 3,
+        "provider_requests": 1,
+        "provider_retries": 0,
+    }
+
+    assert supervisor_usage_cost_microusd(usage) == 17
 
 
 @pytest.fixture(scope="module")
