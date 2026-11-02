@@ -285,7 +285,7 @@ class PlanCommand(Command):
             if (plan.mode != PlanMode.ORGANIZATION and not self.coordinator.is_coordinator()
                     and (task := self.plans.following_task(plan))):
                 self.taking.require_start(task)
-            if self.coordinator.is_coordinator() and plan.mode != PlanMode.ORGANIZATION:
+            if (self.plan_agents.is_on() or self.coordinator.is_coordinator()) and plan.mode != PlanMode.ORGANIZATION:
                 plan = self.plans.opened(plan, caller.actor)
             else:
                 plan = self.plans.start(plan, self.taking.holder(caller), caller.actor)

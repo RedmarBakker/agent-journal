@@ -19,6 +19,8 @@ class PlanStartTaskAssigner:
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if not self.default.is_free_moment(agent, event):
             return Assignment()
+        if self.plan_assigner.another_agent_owns_current_plan(agent, event):
+            return Assignment()
         plan_task = self.plan_assigner.next_plan_task(agent, event, quantity)
         if plan_task.has_task():
             return plan_task

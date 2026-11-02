@@ -5,6 +5,7 @@ from journal.events.rows.plan_work_available import PlanWorkAvailable
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.features.plans.support.phase_testing import PhaseTesting
+from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.plans.support.plan_agent_coordinator import PlanAgentCoordinator
@@ -30,9 +31,10 @@ class PlanTaskAssigner:
 
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting,
                  settings: SettingRows, time_source: TimeSource, scope: Scope, coordinator: PlanAgentCoordinator,
+                 plan_agents: PlanAgents,
                  flow: WorkInProgress) -> None:
         self.default, self.plans, self.tasks, self.testing = default, plans, tasks, testing
-        self.settings, self.time_source, self.scope, self.coordinator, self.flow = settings, time_source, scope, coordinator, flow
+        self.settings, self.time_source, self.scope, self.coordinator, self.plan_agents, self.flow = settings, time_source, scope, coordinator, plan_agents, flow
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if isinstance(event, PlanWorkAvailable):
@@ -81,6 +83,8 @@ class PlanTaskAssigner:
         plan = self.current_plan(agent, event)
         if plan is None:
             return Assignment()
+        if self.another_agent_owns_plan(plan, agent):
+            return Assignment()
         if not self.is_advancing(plan):
             if (plan.is_blocked() or plan.state == PlanState.FINISHED) and not isinstance(event, PlanWorkAvailable):
                 return self.default.next_task(agent, event, quantity)
@@ -94,6 +98,16 @@ class PlanTaskAssigner:
                     return Assignment(reason=reason)
                 self.tasks.holder_started(task.plan_started(self.time_source.moment(), plan.row_id), Ref.build(agent), self.actor(event))
                 return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}", self.following_ids(plan, quantity))
+
+    def another_agent_owns_current_plan(self, agent: Agent, event: AgentEvent | RowEvent) -> bool:
+        plan = self.current_plan(agent, event)
+        return plan is not None and self.another_agent_owns_plan(plan, agent)
+
+    def another_agent_owns_plan(self, plan: Plan, agent: Agent) -> bool:
+        if not self.plan_agents.owns_tasks(plan):
+            return False
+        owner = self.plan_agents.task_agent(plan)
+        return owner is None or owner.row_id != agent.row_id
 
     def following_ids(self, plan: Plan, quantity: int) -> tuple[int, ...]:
         if quantity <= 1:

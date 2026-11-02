@@ -24,9 +24,10 @@ from journal.repositories.plans import Plans
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
-from journal.support.missing_row import MissingRow
 from journal.support.actor import Actor
+from journal.support.caller import Caller
 from journal.support.inner_repositories import InnerRepositories
+from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 from journal.support.worktree_failure import WorktreeFailure
@@ -46,6 +47,35 @@ class PlanAgents:
     def agent(self, plan: Plan) -> Agent | None:
         agent_id = self.plans.agent_id(plan)
         return next(iter(self.agents.global_matching(id=agent_id)), None) if agent_id else None
+
+    def owns_tasks(self, plan: Plan) -> bool:
+        return self.is_on() and plan.state in (
+            PlanState.APPROVED,
+            PlanState.STARTED,
+            PlanState.PAUSED,
+            PlanState.DELEGATED,
+            PlanState.BLOCKED,
+        )
+
+    def task_agent(self, plan: Plan) -> Agent | None:
+        if not self.owns_tasks(plan):
+            return None
+        with self.scope.environment(plan.environment_id):
+            return self.agent(plan)
+
+    def require_task_owner(self, task: Task, caller: Caller) -> None:
+        if not caller.is_main_agent():
+            return
+        with self.scope.environment(task.environment_id):
+            plan = next((plan for plan in self.plans.containing(task) if self.owns_tasks(plan)), None)
+        if plan is None:
+            return
+        agent = self.task_agent(plan)
+        if agent and caller.agent_row and caller.agent_row.row_id == agent.row_id:
+            return
+        environment = self.environments.find(agent.environment_id) if agent else None
+        name = f"agent {agent.row_id} in environment {environment.name}" if agent and environment else f"environment plan-{plan.id}"
+        raise Rejection(f"task {task.id} belongs to the Plan agent for plan {plan.id} ({name}); leave it to that agent")
 
     def environment(self, plan: Plan) -> Environment | None:
         agent = self.agent(plan)

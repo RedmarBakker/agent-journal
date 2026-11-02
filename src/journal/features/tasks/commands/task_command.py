@@ -187,12 +187,14 @@ class TaskCommand(Command):
             self.links.save(Link(source=source, target=Ref.build(task), link_type=Messages.SUBJECT_LINK), caller.actor)
 
     def start(self, args: Namespace, caller: Caller) -> int:
-        task, blocked = self.handover(self.tasks.find(args.n), caller)
+        task = self.readable(args.n, caller)
+        self.plan_agents.require_task_owner(task, caller)
+        task, blocked = self.handover(task, caller)
         print("\n".join([*filter(None, [blocked]), f"task {task.row_id} started", *self.briefing.lines(task)]))
         return 0
 
     def handover(self, task: Task, caller: Caller) -> tuple[Task, str]:
-        started, previous = self.taking.start(self.tasks.find(task.id), caller)
+        started, previous = self.taking.start(task, caller)
         return started, f"task {previous.row_id} blocked until task {started.id} closes" if previous is not None else ""
 
     def transfer(self, args: Namespace, caller: Caller) -> int:
@@ -300,6 +302,7 @@ class TaskCommand(Command):
         holder = self.taking.holder(caller)
         held = self.tasks.holder_task(holder) if holder else None
         task = held if held and held.row_id == args.n else self.readable(args.n, caller)
+        self.plan_agents.require_task_owner(task, caller)
         with self.scope.environment(task.environment_id):
             if self.plans.has_phase_end_tests(task):
                 return self.phase_tested(task, args.how, caller)
