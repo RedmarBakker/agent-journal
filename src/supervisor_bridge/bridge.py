@@ -105,7 +105,8 @@ class SupervisorBridge:
         if admission.get("status") == "skipped":
             reason = admission.get("reason")
             if set(admission) != {"status", "reason"} or not isinstance(reason, str) or reason not in {
-                "empty", "busy", "ineligible", "stale_evidence", "budget_exhausted", "unknown_cost", "revoked", "needs_owner"
+                "empty", "busy", "ineligible", "stale_evidence", "budget_exhausted", "unknown_cost", "revoked",
+                "needs_owner", "scheduled_interval_not_elapsed",
             }:
                 self.state.record_failure("service_rejected", False)
                 return ReconcileResult("failed", "invalid_admission")

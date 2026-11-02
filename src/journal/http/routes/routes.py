@@ -86,6 +86,7 @@ class Routes:
         supervisor = get(SupervisorController)
         router.post_unscoped("/_supervisor/v1/enrollment", supervisor.enroll)
         router.post_unscoped("/_supervisor/v1/enrollment/change", supervisor.change)
+        router.post_unscoped("/_supervisor/v2/grant/interval", supervisor.change_wake_interval)
         router.post_unscoped("/_supervisor/v1/admit", supervisor.admit)
         router.post_unscoped("/_supervisor/v1/observe", supervisor.observe)
         router.post_unscoped("/_supervisor/v1/usage", supervisor.settle_usage)

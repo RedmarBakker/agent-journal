@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping
 
 BUDGET_FIELDS = frozenset({
@@ -95,6 +95,11 @@ class SupervisorGrant:
         return SupervisorGrant(self.owner_user_id, self.environment_id, self.watched_plans, self.capabilities,
                                self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
                                self.paused, True)
+
+    def with_wake_interval(self, minutes: int) -> "SupervisorGrant":
+        if type(minutes) is not int or minutes not in (15, 30, 60):
+            raise ValueError("the supervisor grant wake interval must be 15, 30 or 60 minutes")
+        return replace(self, wake_interval_minutes=minutes)
 
     @classmethod
     def _capabilities(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> tuple[tuple[str, bool, str], ...]:

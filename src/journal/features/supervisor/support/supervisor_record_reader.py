@@ -46,7 +46,7 @@ class SupervisorRecordReader:
         before_id = self._before_id(before)
         current, previous = self._windows(period, self.time_source.moment())
         with self.scope.environment(PROJECT):
-            runs, receipts, proposals, decisions, environment_reads = self._records(plan_ids)
+            runs, receipts, proposals, decisions, environment_reads, wakes = self._records(plan_ids)
             verified = self._verified_receipts(receipts)
         current_receipts = [receipt for receipt in receipts if self._within(receipt.created_at, current)
                             and self._receipt_matches_area(receipt, area)]
@@ -62,16 +62,18 @@ class SupervisorRecordReader:
                          and self._run_matches_area(run, previous_receipts, area)]
         current_proposals = [proposal for proposal in proposals if self._within(proposal.created_at, current)
                              and self._receipt_matches_area(proposal, area)]
+        current_wakes = [wake for wake in wakes if self._within(wake.created_at, current)]
+        previous_wakes = [wake for wake in wakes if self._within(wake.created_at, previous)]
         record_rows = self._record_rows(
             current_runs, current_receipts, current_proposals, current_decisions, decisions,
-            environment_reads, verified,
+            environment_reads, current_wakes, verified,
         )
         remaining = [row for row in record_rows if before_id is None or row["id"] < before_id]
         page = remaining[:PAGE_SIZE]
         return {
             "areas": sorted(AREAS),
-            "current": self._summary(current_runs, current_receipts, current_decisions, verified),
-            "previous": self._summary(previous_runs, previous_receipts, previous_decisions, verified),
+            "current": self._summary(current_runs, current_receipts, current_decisions, current_wakes, verified),
+            "previous": self._summary(previous_runs, previous_receipts, previous_decisions, previous_wakes, verified),
             "records": page,
             "next_before": page[-1]["id"] if len(remaining) > PAGE_SIZE else None,
         }
@@ -616,8 +618,9 @@ class SupervisorRecordReader:
         current_end = now + timedelta(microseconds=1)
         return (current_start, current_end), (previous_start, current_start)
 
-    def _records(self, plan_ids: list[int]) -> tuple[list[Entry], list[Entry], list[Entry], list[Entry], list[Entry]]:
+    def _records(self, plan_ids: list[int]) -> tuple[list[Entry], list[Entry], list[Entry], list[Entry], list[Entry], list[Entry]]:
         runs = [run for plan_id in plan_ids for run in self._entries("SupervisorRun", plan_id=plan_id)]
+        wakes = [wake for plan_id in plan_ids for wake in self._entries("SupervisorWake", plan_id=plan_id)]
         receipts = []
         proposals = []
         environment_reads = []
@@ -647,7 +650,7 @@ class SupervisorRecordReader:
             for decision in self._entries("SupervisorProposalDecision", tenant_id=tenant_id, grant_id=grant_id)
         ]
         decisions = [decision for decision in decisions if decision.data.get("proposal_id") in proposal_ids]
-        return runs, receipts, proposals, decisions, environment_reads
+        return runs, receipts, proposals, decisions, environment_reads, wakes
 
     def _verified_receipts(self, receipts: list[Entry]) -> set[int]:
         return {
@@ -713,17 +716,20 @@ class SupervisorRecordReader:
         return window[0] <= moment < window[1]
 
     def _summary(self, runs: list[Entry], receipts: list[Entry], decisions: list[Entry],
-                 verified: set[int]) -> dict[str, Any]:
+                 wakes: list[Entry], verified: set[int]) -> dict[str, Any]:
         statuses = {status: 0 for status in RECEIPT_STATUSES}
         statuses.update(Counter(str(receipt.data.get("status", "unknown")) for receipt in receipts))
         proposals = Counter(str(decision.data.get("status", "unknown")) for decision in decisions)
         return {"runs": len(runs), "receipts": statuses,
                 "proposals": {"accepted": proposals["accepted"], "declined": proposals["declined"]},
+                "wake_ups": {kind: sum(wake.data.get("wake_kind") == kind for wake in wakes)
+                             for kind in ("scheduled", "event")},
                 "verified_receipts": sum(receipt.row_id in verified for receipt in receipts)}
 
     @staticmethod
     def _record_rows(runs: list[Entry], receipts: list[Entry], proposals: list[Entry], decisions: list[Entry],
-                     all_decisions: list[Entry], environment_reads: list[Entry], verified: set[int]) -> list[dict[str, Any]]:
+                     all_decisions: list[Entry], environment_reads: list[Entry], wakes: list[Entry],
+                     verified: set[int]) -> list[dict[str, Any]]:
         plans_by_run = {
             (run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")): run.data.get("plan_id")
             for run in runs
@@ -739,6 +745,13 @@ class SupervisorRecordReader:
              "what_it_saw": saw_by_run.get((run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")), {})}
             for run in runs
         ]
+        rows.extend(
+            {"id": wake.row_id, "kind": "wake", "created_at": wake.created_at.isoformat(),
+             "plan_id": wake.data.get("plan_id"), "wake_kind": wake.data.get("wake_kind"),
+             "source": wake.data.get("source"), "status": wake.data.get("status"),
+             "reason": wake.data.get("reason"), "interval_minutes": wake.data.get("interval_minutes")}
+            for wake in wakes
+        )
         rows.extend(
             {"id": receipt.row_id, "kind": "receipt", "created_at": receipt.created_at.isoformat(),
              "action_id": receipt.data.get("action_id"), "run_id": receipt.data.get("run_id"),

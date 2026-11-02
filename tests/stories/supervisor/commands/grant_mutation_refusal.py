@@ -30,6 +30,23 @@ def test_the_supervisor_cannot_change_its_own_grant(story):
 
 
 @story(SupervisorGrantCliRole, subject=AgentRole.SUPERVISOR)
+def test_the_supervisor_cannot_change_its_own_wake_interval(story):
+    baseline = story.supervisor_grant_mutation_baseline()
+    result = story.supervisor_calls_grant_route(
+        story.agents.subject, "/_supervisor/v2/grant/interval", {
+            "protocol_version": 2,
+            "grant_id": story.grants.first,
+            "expected_grant_version": 2,
+            "wake_interval_minutes": 60,
+        },
+    )
+    result.expect_viewer_refused("the supervisor service credential cannot use owner management routes")
+    story.expect_supervisor_grant_mutation_wrote_nothing(baseline)
+    story.expect_supervisor_grant_state(story.grants.first, False, False)
+    story.expect_stack(story.agents.subject)
+
+
+@story(SupervisorGrantCliRole, subject=AgentRole.SUPERVISOR)
 def test_the_supervisor_cannot_revoke_its_own_grant(story):
     baseline = story.supervisor_grant_mutation_baseline()
     body = {

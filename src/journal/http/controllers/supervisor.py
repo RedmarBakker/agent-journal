@@ -108,6 +108,13 @@ class SupervisorController:
             headers["X-Journal-Supervisor-Token"] = token
         return Response(200, grant, headers)
 
+    def change_wake_interval(self, request: Request) -> Response:
+        try:
+            answer = self.authority.change_wake_interval(request.actor, request.body)
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)})
+        return Response(200, answer, {"Cache-Control": "no-store"})
+
     def observe(self, request: Request) -> Response:
         return self._service(request, self.observations.observe)
 

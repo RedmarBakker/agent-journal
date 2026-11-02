@@ -308,6 +308,24 @@ class SupervisorAuthority:
             "accept_unavailable_evidence": data.get("evidence_watermark_ms") is None or data.get("evidence_rpo_gap_ms") is None,
         }
 
+    def change_wake_interval(self, actor: Actor, body: object) -> dict[str, Any]:
+        request = self._wake_interval_change(body)
+        with self.entries.writing():
+            entry = self._latest_entry(request["grant_id"])
+            if entry is None:
+                raise SupervisorFailure(403, "supervisor request is not authorized")
+            current = self._public_grant(entry)
+            plan = self._plan(current["plan_id"])
+            self._owner(actor, plan)
+            if current["grant_version"] != request["expected_grant_version"]:
+                raise SupervisorFailure(409, "the supervisor grant changed; read it again before changing it")
+            if current["revoked"] or current["mode"] == "disabled":
+                raise SupervisorFailure(409, "the supervisor grant is already revoked")
+            grant = self._change_wake_interval(
+                entry, current, current["grant_version"] + 1, request["wake_interval_minutes"], actor,
+            )
+        return {**grant, "wake_interval_minutes": request["wake_interval_minutes"]}
+
     def _turn_off(self, entry: Entry, current: dict[str, Any], version: int, actor: Actor) -> dict[str, Any]:
         grant_v2 = self._grant_v2(entry, current)
         if grant_v2.get("paused") is True:
@@ -323,8 +341,17 @@ class SupervisorAuthority:
         return self._append_pause(entry, current, version, {**grant_v2, "paused": False}, actor)
 
     def _append_pause(self, entry: Entry, current: dict[str, Any], version: int, grant_v2: dict, actor: Actor) -> dict[str, Any]:
+        return self._append_grant_version(entry, current, version, grant_v2, actor)
+
+    def _change_wake_interval(self, entry: Entry, current: dict[str, Any], version: int,
+                              minutes: int, actor: Actor) -> dict[str, Any]:
+        permissions = SupervisorGrant.stored(self._grant_v2(entry, current)).with_wake_interval(minutes).data()
+        return self._append_grant_version(entry, current, version, permissions, actor)
+
+    def _append_grant_version(self, entry: Entry, current: dict[str, Any], version: int,
+                              permissions: dict[str, Any], actor: Actor) -> dict[str, Any]:
         grant = {**current, "grant_version": version}
-        prior = {**entry.data, "grant_v2": grant_v2}
+        prior = {**entry.data, "grant_v2": permissions}
         self._append_grant(grant, entry.data.get("_credential_sha256", ""), entry.data.get("_credential_name", ""), prior, actor)
         return grant
 
@@ -1134,6 +1161,18 @@ class SupervisorAuthority:
             else:
                 change = cls._object(change, {"kind", "enrollment"})
         return {**body, "grant_id": grant_id, "change": dict(change)}
+
+    @classmethod
+    def _wake_interval_change(cls, value: object) -> dict[str, Any]:
+        body = cls._object(value, {"protocol_version", "grant_id", "expected_grant_version", "wake_interval_minutes"})
+        if type(body["protocol_version"]) is not int or body["protocol_version"] != 2:
+            raise SupervisorFailure(400, "the wake interval change does not match supervisor protocol version 2")
+        grant_id = cls._string(body["grant_id"], 256)
+        version = cls._integer(body["expected_grant_version"], 1)
+        minutes = body["wake_interval_minutes"]
+        if type(minutes) is not int or minutes not in (15, 30, 60):
+            raise SupervisorFailure(400, "the supervisor grant wake interval must be 15, 30 or 60 minutes")
+        return {"grant_id": grant_id, "expected_grant_version": version, "wake_interval_minutes": minutes}
 
     @staticmethod
     def _object(value: object, keys: frozenset[str] | set[str]) -> dict[str, Any]:

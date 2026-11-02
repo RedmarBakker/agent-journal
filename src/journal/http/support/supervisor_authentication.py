@@ -9,7 +9,9 @@ from journal.supervisor_principal import SupervisorPrincipal
 
 TOKEN_HEADER = "x-journal-supervisor-token"
 AUTHORIZATION_HEADER = "authorization"
-OWNER_PATHS = frozenset({"/_supervisor/v1/enrollment", "/_supervisor/v1/enrollment/change"})
+OWNER_PATHS = frozenset({
+    "/_supervisor/v1/enrollment", "/_supervisor/v1/enrollment/change", "/_supervisor/v2/grant/interval",
+})
 SERVICE_PATHS = frozenset({
     "/_supervisor/v1/admit",
     "/_supervisor/v1/observe",

@@ -337,6 +337,17 @@ def test_empty_or_overlap_reconcile_uses_no_model(tmp_path):
     assert hook.calls == []
 
 
+def test_early_scheduled_reconcile_uses_no_model(tmp_path):
+    journal = StubJournal([{"status": "skipped", "reason": "scheduled_interval_not_elapsed"}])
+    hook = StubHook()
+    bridge = SupervisorBridge(journal, StateStore(tmp_path), hook=hook)
+
+    result = bridge.reconcile("timer")
+
+    assert result.status == "skipped" and result.reason == "scheduled_interval_not_elapsed"
+    assert hook.calls == []
+
+
 def test_hints_and_timer_share_one_admission(tmp_path):
     journal = StubJournal([{"status": "skipped", "reason": "empty"}, {"status": "skipped", "reason": "empty"}])
     bridge = SupervisorBridge(journal, StateStore(tmp_path))
