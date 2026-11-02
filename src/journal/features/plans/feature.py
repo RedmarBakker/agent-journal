@@ -23,6 +23,7 @@ from journal.features.plans.coordinator_conduct import CoordinatorConduct
 from journal.features.plans.listeners.plan_agent_focus import PlanAgentFocus
 from journal.features.plans.listeners.started_plan_focus import StartedPlanFocus
 from journal.features.plans.seeds.closed_plans import ClosedPlans
+from journal.features.plans.seeds.started_plan_agents import StartedPlanAgents
 from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.plans_ready import PlansReady
@@ -61,7 +62,7 @@ class Plans(Feature[PlansData]):
     conduct = (PlansConduct,)
     floor_conduct = ((CoordinatingPlans, CoordinatorConduct),)
     data = (PlansDataReader,)
-    seeds = (ClosedPlans,)
+    seeds = (ClosedPlans, StartedPlanAgents)
     jobs = (TemplatePlanStart,)
 
     options = (PlansOptions.TESTING, PlansOptions.TEST_COMMANDS, PlansOptions.PLAN_AGENTS)

@@ -22,6 +22,7 @@ from journal.support.process_usage import ProcessUsage
 JOURNAL_PREFIX = "[journal]"
 LINE_ERASE = "\x15"
 ERASE_MARGIN_LINES = 2
+NO_SUPERVISOR = "no supervisor runs here"
 # how long the journal waits before it restarts, so the command that asked for the restart finishes its answer first
 RESTART_DELAY_SECONDS = 2.0
 AGENT, JOURNAL, SUPERVISOR = "agent", "journal", "supervisor"
@@ -182,7 +183,10 @@ class SupervisorLink:
             return False
 
     def stop(self, environment_id: int) -> SupervisorReply:
-        return self._send(environment_id, "stop", {"name": AGENT})
+        try:
+            return self._send(environment_id, "stop", {"name": AGENT})
+        except FileNotFoundError:
+            return SupervisorReply(False, NO_SUPERVISOR)
 
     def hosting(self) -> int | None:
         hosts = self.environments.matching(name=os.environ.get("JOURNAL_ENV", ""))
@@ -221,7 +225,7 @@ class SupervisorLink:
     def _send(self, environment_id: int, verb: str, fields: dict) -> SupervisorReply:
         announced = self.announced(environment_id)
         if announced is None:
-            return SupervisorReply(False, "no supervisor runs here")
+            return SupervisorReply(False, NO_SUPERVISOR)
         if announced.is_compatible:
             return SupervisorSocket.ask(announced.socket, {"verb": verb, **fields})
         if not OldSupervisor.takes(verb):

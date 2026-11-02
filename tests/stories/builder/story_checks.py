@@ -17,6 +17,7 @@ from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
 from journal.support.listener_queue import ListenerQueue
+from journal.support.fault_log import FaultLog
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers as WorkerRows
 from journal.repositories.plans import Plans
@@ -76,6 +77,10 @@ class StoryChecks:
         rows = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("shows") == shows]
         marks = sorted(row["text"] for row in rows)
         assert marks == sorted(texts), f"the chat's {shows} marks are {marks}, not {sorted(texts)}: {rows}"
+
+    def expect_no_faults(self) -> None:
+        faults = self.app.container.get(FaultLog).drained()
+        assert not faults, f"the journal recorded faults: {[(fault.place, fault.fault_type, fault.text) for fault in faults]}"
 
     @staticmethod
     def is_shown_docked(data: dict, now: float) -> bool:

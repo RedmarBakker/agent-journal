@@ -105,12 +105,18 @@ class PlanAgents:
         return bool(self.settings.option(PlansOptions.PLAN_AGENTS))
 
     def started(self, event: PlanStarted) -> None:
-        with self.scope.environment(event.environment_id):
+        self.start_agent(event.plan_id, event.environment_id, Actor.parse(event.actor))
+
+    def recover(self, plan: Plan) -> None:
+        self.start_agent(plan.row_id, plan.environment_id, Actor.system())
+
+    def start_agent(self, plan_id: int, source_environment_id: int, actor: Actor) -> None:
+        with self.scope.environment(source_environment_id):
             if not self.is_on():
                 return
-            plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
+            plan = self.plans.find(plan_id)
             environment = self.environment(plan)
-            environment = self.places.visible(environment, plan.environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", plan.environment_id, actor, "plan")
+            environment = self.places.visible(environment, source_environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", source_environment_id, actor, "plan")
             agent = self.agent(plan)
             if plan.mode == PlanMode.ORGANIZATION:
                 if agent and self.staffing.is_running(plan, agent.provider):
@@ -118,22 +124,22 @@ class PlanAgents:
             elif self.places.is_running(environment):
                 return
             self.bindings.bind(plan, environment.row_id, actor)
-            agent = agent or self.prepared(plan, environment, event.environment_id, actor)
+            agent = agent or self.prepared(plan, environment, source_environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
                 try:
                     self.staffing.start_plan(plan, environment, agent, actor)
                 except Rejection as reason:
-                    self.attention(event, f"Plan {plan.id} needs OpenRig attention: {reason}", {"kind": "plan_attention", "plan": plan.id})
+                    self.attention(plan, f"Plan {plan.id} needs OpenRig attention: {reason}", {"kind": "plan_attention", "plan": plan.id})
             else:
                 try:
                     self.places.launched(environment, agent, self.repository_folders(plan))
                 except (WorktreeFailure, OSError, RuntimeError) as reason:
-                    self.attention(event, f"Plan {plan.id}'s Plan agent did not start: {reason}", {
+                    self.attention(plan, f"Plan {plan.id}'s Plan agent did not start: {reason}", {
                         "kind": "plan_attention", "plan": plan.id, "agent_start_failure": True, "reason": str(reason),
                     })
 
-    def attention(self, event: PlanStarted, text: str, data: dict) -> None:
-        self.messages.save(Message(environment_id=event.environment_id, author=Author.SYSTEM, text=text, data=data), Actor.system())
+    def attention(self, plan: Plan, text: str, data: dict) -> None:
+        self.messages.save(Message(environment_id=plan.environment_id, author=Author.SYSTEM, text=text, data=data), Actor.system())
 
     def prepared(self, plan: Plan, environment: Environment, starter_environment_id: int, actor: Actor) -> Agent:
         from journal.features.plans.states.leading_plan import LeadingPlan

@@ -876,6 +876,14 @@ class AgentSteps:
         inbox.write_text(json.dumps({"socket": str(inbox.parent / "gone.sock"), "protocol": 1}))
         return self.observed("the supervisor stopped without closing its inbox", None, None)
 
+    def the_plan_agent_supervisor_stopped_without_closing_its_inbox(self, agent: StoryAgent) -> StepResult:
+        agent_row = self.app.container.get(Agents).session_agent(self.session_of(agent))
+        environment = self.app.container.get(Environments).find(agent_row.environment_id)
+        inbox = self.app.config.home / "runtime" / "inboxes" / environment.name
+        inbox.parent.mkdir(parents=True, exist_ok=True)
+        inbox.write_text(json.dumps({"socket": str(inbox.parent / "gone.sock"), "protocol": 1}))
+        return self.observed("the Plan agent's supervisor stopped without closing its inbox", None, None, environment.name)
+
     def the_supervisor_closed_its_inbox(self, agent: StoryAgent) -> StepResult:
         self.inbox_file().unlink(missing_ok=True)
         return self.observed("the supervisor closed its inbox", None, None)
