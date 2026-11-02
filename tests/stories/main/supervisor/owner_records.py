@@ -105,7 +105,7 @@ def test_an_environment_without_a_supervisor_grant_is_never_set_up(story):
 
 @story(SupervisorGrantPaused, subject=AgentRole.MAIN)
 def test_an_owner_can_read_past_records_while_the_supervisor_is_off(story):
-    result = story.user_opens_in("main", "/journal/supervisor/records?period=last_30_days")
+    result = story.user_opens_in(environment(story), "/journal/supervisor/records?period=last_30_days")
     result.expect_viewer_passed()
     result.expect_viewer_part(("status",), "off")
     result.expect_viewer_part(("current", "runs"), 0)

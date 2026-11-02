@@ -18,7 +18,7 @@ def test_an_area_and_its_verb_each_have_to_be_enabled_for_the_supervisor_to_act(
         "area:plans-and-tasks": {"on": True, "mode": "propose"},
         "task create": {"on": True, "mode": "act"},
     }
-    result = story.user_presses_in(story.supervisor_owner_environment, "/_supervisor/v1/enrollment/change", {
+    result = story.user_presses("/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": story.grants.first,
         "expected_grant_version": story.viewer_answer["grant_version"],
@@ -38,7 +38,7 @@ def test_an_area_and_its_verb_each_have_to_be_enabled_for_the_supervisor_to_act(
         "area:plans-and-tasks": {"on": False, "mode": "propose"},
         "task create": {"on": True, "mode": "act"},
     }
-    result = story.user_presses_in(story.supervisor_owner_environment, "/_supervisor/v1/enrollment/change", {
+    result = story.user_presses("/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": story.grants.first,
         "expected_grant_version": story.viewer_answer["grant_version"],

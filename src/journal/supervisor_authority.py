@@ -231,7 +231,8 @@ class SupervisorAuthority:
                 or version_two["revoked"] != original.get("revoked", current["revoked"])
                 or version_two["valid_until_ms"] != original["valid_until_ms"]):
             raise SupervisorFailure(400, "turn the supervisor off or replace its grant to change its status or expiry")
-        self._watched_plans(version_two["watched_plans"], current["driver_environment_id"], current["owner_user_id"])
+        self._watched_plans(version_two["watched_plans"], self._plan(current["plan_id"]).environment_id,
+                            current["owner_user_id"])
         capabilities = dict(version_two["capabilities"])
         for capability in VERSION_ONE_CAPABILITIES.values():
             capabilities.setdefault(capability, {"on": False, "mode": "act"})
