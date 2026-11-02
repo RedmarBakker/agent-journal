@@ -5,6 +5,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.supervisor_grant_capabilities import configure_grant_capabilities
 from tests.stories.fixtures.main.supervisor_grant_cli_role import SupervisorGrantCliRole
+from tests.stories.fixtures.main.supervisor_grant_cli_role_with_task import SupervisorGrantCliRoleWithTask
 
 
 def owner_sets_decision(story, command: str, decision: str, version: int = 2):
@@ -105,7 +106,7 @@ def test_an_owner_can_allow_a_tier_three_plan_cancel_to_act(story):
     story.expect_stack(story.agents.subject)
 
 
-@story(SupervisorGrantCliRole, subject=AgentRole.SUPERVISOR)
+@story(SupervisorGrantCliRoleWithTask, subject=AgentRole.SUPERVISOR)
 def test_an_owner_sets_tier_three_decisions_and_cannot_change_its_own_grant(story):
     refused = owner_sets_decision(story, "plan approve", "not_allowed")
     refused.expect_viewer_passed()

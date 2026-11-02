@@ -167,6 +167,8 @@ class SupervisorMaintenance:
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "rejected", reason)
             if decision := self._narrowing_decision(context["permissions"], request["operations"]):
                 status, reason = decision
+                if status == "proposed":
+                    return self._proposal_receipt(grant, request, run, epoch, intent_hash, context, reason)
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, status, reason)
             if self._proposes(context["permissions"], request["operations"]):
                 return self._proposal_receipt(grant, request, run, epoch, intent_hash, context)
@@ -994,9 +996,9 @@ class SupervisorMaintenance:
         return self._record_receipt(request, data, intent_hash, reason)
 
     def _proposal_receipt(self, grant: dict[str, Any], request: dict[str, Any], run: Entry, epoch: int,
-                          intent_hash: str, context: dict[str, Any]) -> dict[str, Any]:
+                          intent_hash: str, context: dict[str, Any], reason: str | None = None) -> dict[str, Any]:
         run_ref = run.data["run_ref"]
-        data = self._receipt_data(grant, request, run_ref, epoch, intent_hash, "proposed", None, [], [])
+        data = self._receipt_data(grant, request, run_ref, epoch, intent_hash, "proposed", reason, [], [])
         commands = self._proposal_commands(grant, request, context)
         data.update({
             "command": "\n".join(commands), "commands": commands,

@@ -7,6 +7,7 @@ import stat
 from pathlib import Path
 
 from plugins.supervisor_v1 import bridge_service
+from supervisor_bridge.contracts import OPENCLAW_TOOL_NAMES
 
 
 ROOT = Path(__file__).parents[1]
@@ -966,7 +967,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert contract_fixture["cron_add_params"]["enabled"] is False
     assert fixture["enrollment"]["enabled"] is False
     assert fixture["tools"]["wildcards"] is False
-    assert len(fixture["tools"]["allowlist"]) == 3
+    assert fixture["tools"]["allowlist"] == list(OPENCLAW_TOOL_NAMES)
     assert contract_fixture["openclaw_config"]["tools"]["toolSearch"] is False
     assert fixture["secret_values_in_fixture"] is False
     mapping = contract_fixture["openclaw_config"]["hooks"]["mappings"]

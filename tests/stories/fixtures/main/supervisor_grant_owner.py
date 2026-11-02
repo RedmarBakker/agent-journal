@@ -19,7 +19,7 @@ class SupervisorGrantOwner(SupervisorGrantFixture):
         self.supervisor_owner_environment = fixture.owner_environment.name
         self.supervisor_replacement = enrollment(fixture, "bounded_write")
         self.plans.first = fixture.plan.row_id
-        self.tasks.first = fixture.task.row_id
+        self.supervisor_task_id = fixture.task.row_id
         self.grants.first = grant["grant_id"]
         story.closers.append(lambda: fixture.authority.secrets_store.drop(fixture.credentials))
         result = story.user_opens_in(fixture.owner_environment.name, "/journal/supervisor/records?period=today")

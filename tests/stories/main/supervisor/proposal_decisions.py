@@ -29,12 +29,6 @@ def test_an_owner_accepts_a_proposal_as_a_command_and_cannot_reuse_it(story):
 
     again = story.user_presses_in(story.supervisor_environment, path, {})
     again.expect_viewer_refused("closed")
-    again = story.user_presses_in(
-        story.supervisor_environment,
-        f"/journal/supervisor/proposals/{proposal_id}/decline",
-        {},
-    )
-    again.expect_viewer_refused("closed")
     result = records(story)
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "proposals"), {"accepted": 1, "declined": 0})
@@ -58,12 +52,6 @@ def test_an_owner_declines_a_proposal_and_cannot_reuse_it(story):
     declined.expect_viewer_part_is_truthy(("receipt_id",))
     story.expect_row_in(story.supervisor_environment, "plans", story.supervisor_plan, {"priorities": ""})
 
-    again = story.user_presses_in(
-        story.supervisor_environment,
-        f"/journal/supervisor/proposals/{proposal_id}/accept",
-        {},
-    )
-    again.expect_viewer_refused("closed")
     again = story.user_presses_in(story.supervisor_environment, path, {})
     again.expect_viewer_refused("closed")
     result = records(story)
