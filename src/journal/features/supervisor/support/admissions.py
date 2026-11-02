@@ -24,10 +24,6 @@ SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION = Decimal("4")
 SUPERVISOR_CACHE_READ_RATE_PER_MILLION = Decimal("0.2")
 SUPERVISOR_OUTPUT_RATE_PER_MILLION = Decimal("10")
 TERMINAL_RUN_STATES = ("complete", "conflicted", "rejected")
-SUPERVISOR_INPUT_RATE_PER_MILLION = Decimal("2")
-SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION = Decimal("4")
-SUPERVISOR_CACHE_READ_RATE_PER_MILLION = Decimal("0.2")
-SUPERVISOR_OUTPUT_RATE_PER_MILLION = Decimal("10")
 
 
 def digest(value: str) -> str:
@@ -96,24 +92,6 @@ def supervisor_run_reservation_microusd(input_tokens: int, output_tokens: int) -
         (input_tokens, SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION),
         (output_tokens, SUPERVISOR_OUTPUT_RATE_PER_MILLION),
     )
-
-
-def supervisor_usage_cost_microusd(usage: Mapping[str, int]) -> int:
-    total = (
-        Decimal(usage["input_tokens"]) * SUPERVISOR_INPUT_RATE_PER_MILLION
-        + Decimal(usage["cache_creation_input_tokens"]) * SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION
-        + Decimal(usage["cache_read_input_tokens"]) * SUPERVISOR_CACHE_READ_RATE_PER_MILLION
-        + Decimal(usage["output_tokens"]) * SUPERVISOR_OUTPUT_RATE_PER_MILLION
-    )
-    return int(total.quantize(Decimal("1"), rounding=ROUND_CEILING))
-
-
-def supervisor_run_reservation_microusd(input_tokens: int, output_tokens: int) -> int:
-    worst_case = (
-        Decimal(input_tokens) * SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION
-        + Decimal(output_tokens) * SUPERVISOR_OUTPUT_RATE_PER_MILLION
-    )
-    return int(worst_case.quantize(Decimal("1"), rounding=ROUND_CEILING))
 
 
 def action_receipt_key(tenant_id: str, action_id: str) -> str:
@@ -544,7 +522,7 @@ class SupervisorAdmissions:
         input_tokens, output_tokens = input_per_turn * turns, output_per_turn * turns
         input_rate, output_rate = rates
         return {
-            "cost_usd": str(cost(input_tokens, output_tokens, input_rate, output_rate)),
+            "cost_usd": format(cost(input_tokens, output_tokens, input_rate, output_rate), ".6f"),
             "turns": turns,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
