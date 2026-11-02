@@ -16,6 +16,12 @@ export const PAGES = {
     team: {title: "Team", icon: "people", text: "Your team's server: its people, devices and the items it shares"},
     mcp: {title: "MCP", icon: "share", text: "The MCP servers the agents are given"},
     plugins: {title: "Plugins", icon: "plug", text: "Installed plugins, with their dashboards and settings"},
+    supervisor: {title: "Supervisor", icon: "shield", text: "What the supervisor did and how well, at a glance", children: [
+        {key: "dashboard", title: "Dashboard"},
+        {key: "control", title: "Control"},
+        {key: "decisions", title: "Decisions and actions"},
+        {key: "cost", title: "Cost"},
+    ]},
     settings: {title: "Settings", icon: "settings", text: "Features, notifications and how the viewer behaves", children: TABS.map(({key, title}) => ({key, title}))},
 };
 

@@ -49,6 +49,7 @@ class SupervisorRecordReader:
         remaining = [row for row in record_rows if before_id is None or row["id"] < before_id]
         page = remaining[:PAGE_SIZE]
         return {
+            "areas": sorted(AREAS),
             "current": self._summary(current_runs, current_receipts, verified),
             "previous": self._summary(previous_runs, previous_receipts, verified),
             "records": page,

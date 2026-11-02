@@ -45,6 +45,16 @@ test("two reads of a table's rows by different ids go out side by side, each ans
     expect(sent.map((url) => url.split("/journal")[1])).toEqual(["/tasks?ids=4481%2C4482", "/tasks?ids=4491%2C4492"]);
 });
 
+test("Supervisor record reads send the selected period, plan and area", async () => {
+    const {sent} = answering();
+    const {api} = await import("../src/api/client.js");
+    vi.spyOn(api, "env").mockReturnValue("main");
+
+    api.supervisorRecords({period: "today", planId: "4", area: "checks"});
+
+    expect(sent).toEqual(["/journal/supervisor/records?period=today&plan_id=4&area=checks"]);
+});
+
 test("an answer the journal sent without readable JSON is refused, so a poll keeps what it had", async () => {
     const {answered} = await import("../src/api/transport.js");
     await expect(answered(new Response("<html>", {status: 200}), "200 OK")).rejects.toThrow("could not be read");

@@ -151,6 +151,11 @@ export class ApiClient {
         return this.get(this.here("/home"));
     }
 
+    supervisorRecords({period = "last_7_days", planId = "", area = ""} = {}) {
+        const path = this.here(`/supervisor/records${query({period, plan_id: planId, area})}`);
+        return this.get(path, `supervisor.records:${period}:${planId}:${area}`);
+    }
+
     organizationRole(domain, role) {
         return this.get(this.here(`/organization/roles/${encoded(domain)}/${encoded(role)}`));
     }

@@ -78,6 +78,18 @@ class SupervisorAuthority:
     def has_enrollment_grant(self) -> bool:
         return bool(self._latest_entries())
 
+    def owner_status(self, environment_id: int) -> str:
+        entry = next((row for row in self._latest_entries()
+                      if row.data.get("driver_environment_id") == environment_id), None)
+        if entry is None:
+            return "never_set_up"
+        grant = self._public_grant(entry)
+        grant_v2 = self._grant_v2(entry, grant)
+        if (grant.get("revoked") is True or grant.get("mode") == "disabled"
+                or grant.get("valid_until_ms", 0) <= self._now_ms() or grant_v2.get("paused") is True):
+            return "off"
+        return "on"
+
     def enrollment_context(self, plan_id: int, check_ids: tuple[int, ...] = (), template_id: str = "") -> dict[str, Any]:
         plan = self._plan(plan_id)
         context = self._eligible(plan, self.owners.number(plan))

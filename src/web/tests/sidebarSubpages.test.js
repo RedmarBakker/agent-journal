@@ -103,3 +103,22 @@ test("a child-page entry opens its first child, moves counts, and hides its chil
     expect(host.querySelector(".item-subpages")).toBeNull();
     expect(parent.querySelector(".count").textContent).toBe("5");
 });
+
+test("Supervisor opens Dashboard and shows its four sub-pages under Environment", async () => {
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(Sidebar)});
+    app.directive("tip", {});
+    app.mount(host);
+
+    await until(() => host.querySelector('.item.parent[href="#/supervisor?sub=dashboard"]'));
+    const parent = host.querySelector('.item.parent[href="#/supervisor?sub=dashboard"]');
+    expect(parent.closest(".fold-group").querySelector(".fold-label").textContent).toBe("Environment");
+    parent.click();
+    await until(() => parent.getAttribute("aria-expanded") === "true");
+
+    expect(location.hash).toBe("#/supervisor?sub=dashboard");
+    expect([...host.querySelectorAll(".item-subpage .label")].map((child) => child.textContent)).toEqual([
+        "Dashboard", "Control", "Decisions and actions", "Cost",
+    ]);
+    expect(host.querySelector('.item-subpage[aria-current="page"] .label').textContent).toBe("Dashboard");
+});

@@ -17,6 +17,7 @@ import TeamPage from "./pages/TeamPage.vue";
 import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
+import SupervisorPage from "./pages/SupervisorPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
 import Home from "./pages/Home.vue";
 import HomeDashboard from "./pages/HomeDashboard.vue";
@@ -36,6 +37,7 @@ defineProps({page: {type: String, required: true}});
         <template #board><HomePlanBoard view="board" /></template>
         <template #chat><Home /></template>
         <template #settings><SettingsPage /></template>
+        <template #supervisor><SupervisorPage /></template>
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
         <template #files><FilesPage /></template>

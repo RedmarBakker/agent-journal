@@ -32,7 +32,8 @@ class SupervisorController:
             )
         except SupervisorFailure as denied:
             return Response(denied.status, {"error": str(denied)})
-        return Response(200, answer, {"Cache-Control": "no-store"})
+        return Response(200, {**answer, "status": self.authority.owner_status(self.scope.id)},
+                        {"Cache-Control": "no-store"})
 
     def enroll(self, request: Request) -> Response:
         try:

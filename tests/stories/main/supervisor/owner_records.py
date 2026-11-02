@@ -3,6 +3,8 @@ from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.new_session import NewSession
+from tests.stories.fixtures.main.supervisor_grant_paused import SupervisorGrantPaused
 from tests.stories.fixtures.main.supervisor_records import SupervisorRecords
 
 
@@ -18,6 +20,8 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
     route = f"/journal/supervisor/records?period=last_7_days&plan_id={plan}&area=checks"
     result = story.user_opens_in(current, route)
     result.expect_viewer_passed()
+    result.expect_viewer_part(("status",), "on")
+    result.expect_viewer_part_is_truthy(("areas",))
     result.expect_viewer_part(("current", "runs"), 102)
     result.expect_viewer_part(("current", "receipts"), {
         "applied": 51, "conflicted": 17, "proposed": 17, "rejected": 17,
@@ -87,6 +91,24 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
         f"/journal/supervisor/records?period=last_7_days&plan_id={story.plans.foreign}",
     )
     result.expect_viewer_refused("plan")
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(NewSession, subject=AgentRole.MAIN)
+def test_an_environment_without_a_supervisor_grant_is_never_set_up(story):
+    result = story.user_opens_in("main", "/journal/supervisor/records?period=last_30_days")
+    result.expect_viewer_passed()
+    result.expect_viewer_part(("status",), "never_set_up")
+    result.expect_viewer_part(("current", "runs"), 0)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(SupervisorGrantPaused, subject=AgentRole.MAIN)
+def test_an_owner_can_read_past_records_while_the_supervisor_is_off(story):
+    result = story.user_opens_in("main", "/journal/supervisor/records?period=last_30_days")
+    result.expect_viewer_passed()
+    result.expect_viewer_part(("status",), "off")
+    result.expect_viewer_part(("current", "runs"), 0)
     story.expect_stack(story.agents.subject, Ready)
 
 
