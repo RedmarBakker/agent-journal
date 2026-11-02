@@ -41,7 +41,7 @@ class Role:
         raise NotImplementedError
 
     @classmethod
-    def runs(cls, command: type[Command], verb: str) -> bool:
+    def runs(cls, command: type[Command], verb: str, caller=None, args=None) -> bool:
         raise NotImplementedError
 
     @classmethod

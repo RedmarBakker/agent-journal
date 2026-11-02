@@ -21,6 +21,7 @@ from journal.support.researcher_session import ResearcherSession
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.repositories.plans import Plans
+from journal.repositories.environments import Environments
 from tests.lab.simulated_seats import SimulatedSeats
 from tests.in_process import posted
 from tests.agent_hooks import TOOLS
@@ -233,10 +234,10 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         principal = authority.authenticate(agent.grant_credential)
         grant = authority.revalidate(principal)
         if principal.actor != agent.actor or agent.actor != Actor.plugin(SUPERVISOR_ACTOR):
-            raise AssertionError("the supervisor story subject must carry its version 1 plugin actor and grant credential")
-        plan = self.app.container.get(Plans).global_matching(id=grant["plan_id"])[0]
-        environment = self.app.container.get(Environments).global_matching(id=plan.environment_id)[0]
-        return Caller.plugin(environment.name, agent.actor.id)
+            raise AssertionError("the supervisor story subject must carry its plugin actor and current grant credential")
+        environment = self.app.container.get(Environments).global_matching(id=grant["driver_environment_id"])[0]
+        permissions = authority.command_grant(agent.grant_credential, environment.row_id)
+        return Caller.supervisor(environment.name, agent.actor.id, permissions)
 
     def checker_session(self, rows: type, number: int) -> str:
         with self.app.container.get(Scope).environment(1):

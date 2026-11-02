@@ -24,6 +24,9 @@ from journal.features.shell.support.shell_runner import EXIT
 from journal.support.response import Response
 from journal.engine.support.launch_files import LaunchFiles
 from journal.features.shell.support.background_commands import BackgroundCommands
+from journal.repositories.environments import Environments
+from journal.supervisor_authority import SUPERVISOR_ACTOR, SupervisorAuthority
+from journal.supervisor_failure import SupervisorFailure
 
 ACTOR_HEADER = "x-journal-actor"
 THREAD_HEADER = "x-journal-thread"
@@ -33,21 +36,22 @@ EXEC = "__journal_exec"
 class CliController:
     """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's. A background command's printed lines go out as they are printed, into the output its shell line writes, with its errors and exit line once it ends."""
 
-    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, background: BackgroundCommands, worker_lines: WorkerAliasLine, plain_lines: PlainAliasLine, registry: Registry) -> None:
+    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, background: BackgroundCommands, worker_lines: WorkerAliasLine, plain_lines: PlainAliasLine, registry: Registry, authority: SupervisorAuthority, environments: Environments) -> None:
         self.background, self.registry = background, registry
         self.alias_lines = {WorkerAliasLine: worker_lines, PlainAliasLine: plain_lines}
         self.console, self.tokens, self.subagents, self.launches, self.providers, self.aliases = console, tokens, subagents, launches, providers, aliases
         self.identity = identity
+        self.authority, self.environments = authority, environments
 
     def run(self, request: Request) -> Response:
-        variables = CallerVariables.parsed(request.body, self.providers.default().name)
+        variables = self.supervisor_granted(CallerVariables.parsed(request.body, self.providers.default().name))
         if not self.is_known(variables):
             return Response.json(self.token_refusal(variables), 403)
         return Response.json(self.outcome(variables, request.body["argv"], request))
 
     def run_posted(self, request: Request) -> StreamResponse:
         posted = CliPost.parsed(request.body["raw"])
-        variables = replace(self.providers.caller_variables(posted.environment), environment=request.environment)
+        variables = self.supervisor_granted(replace(self.providers.caller_variables(posted.environment), environment=request.environment))
         alias = self.aliases.called(posted.argv)
         if alias is not None and self.is_known(variables):
             return self.alias_answer(alias, posted.argv, self.caller(variables, posted.argv, request))
@@ -89,12 +93,26 @@ class CliController:
 
     def is_known(self, variables: CallerVariables) -> bool:
         plugin_proof = variables.plugin is None or self.tokens.matches(variables.plugin, variables.token)
-        return plugin_proof and self.identity.is_proven(variables)
+        supervisor_proof = variables.plugin != SUPERVISOR_ACTOR or variables.supervisor_grant is not None
+        return plugin_proof and supervisor_proof and self.identity.is_proven(variables)
 
     def token_refusal(self, variables: CallerVariables) -> Outcome:
         if variables.plugin is not None and not self.tokens.matches(variables.plugin, variables.token):
             return Outcome.refused(f"the journal does not know this token for plugin {variables.plugin}\n")
+        if variables.plugin == SUPERVISOR_ACTOR and variables.supervisor_grant is None:
+            return Outcome.refused(f"{variables.supervisor_refusal or 'a supervisor service credential is required'}\n")
         return Outcome.refused(IDENTITY_REFUSAL)
+
+    def supervisor_granted(self, variables: CallerVariables) -> CallerVariables:
+        if (variables.plugin != SUPERVISOR_ACTOR or not self.tokens.matches(variables.plugin, variables.token)
+                or not self.identity.is_proven(variables)):
+            return variables
+        try:
+            environment_id = self.environments.lookup(variables.environment).row_id
+            grant = self.authority.command_grant(variables.supervisor_token or "", environment_id)
+        except SupervisorFailure as refused:
+            return replace(variables, supervisor_refusal=str(refused))
+        return replace(variables, supervisor_grant=grant)
 
     def outcome(self, variables: CallerVariables, argv: list[str], request: Request) -> Outcome:
         return self.console.run(argv, self.caller(variables, argv, request))

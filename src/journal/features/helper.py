@@ -29,7 +29,7 @@ class Helper(Role):
         return frozenset(feature.name for feature in cls.features)
 
     @classmethod
-    def runs(cls, command: type[Command], verb: str) -> bool:
+    def runs(cls, command: type[Command], verb: str, caller=None, args=None) -> bool:
         return any(listed is command and verb in verbs for listed, verbs in cls.commands)
 
     @classmethod

@@ -14,6 +14,7 @@ from journal.features.helper import Helper
 from journal.features.role import ENGINE, Role
 from journal.helpers.main_role import MainRole
 from journal.helpers.plugin_role import PluginRole
+from journal.helpers.supervisor_role import SupervisorRole
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
 from journal.support.skill import Skill
@@ -30,7 +31,8 @@ class Registry:
         self._by_state = {state.name: feature for feature in features for state in feature.states}
         self._feature_names = self.feature_names(features)
         self._helpers = self.helper_files(helpers)
-        self._roles: dict[AgentRole, type[Role]] = {AgentRole.MAIN: MainRole, AgentRole.PLUGIN: PluginRole, **self._helpers}
+        self._roles: dict[AgentRole, type[Role]] = {AgentRole.MAIN: MainRole, AgentRole.PLUGIN: PluginRole,
+            AgentRole.SUPERVISOR: SupervisorRole, **self._helpers}
 
     @staticmethod
     def feature_names(features: tuple[type[Feature], ...]) -> dict[type, str]:
@@ -84,8 +86,14 @@ class Registry:
     def helper_features(self, role: AgentRole) -> frozenset[str]:
         return self.helper(role).feature_names()
 
-    def runs_verb(self, command: type[Command], verb: str, role: AgentRole) -> bool:
-        return self.role_file(role).runs(command, verb)
+    def runs_verb(self, command: type[Command], verb: str, role: AgentRole, caller=None, args=None) -> bool:
+        return self.role_file(role).runs(command, verb, caller, args)
+
+    def refusal(self, command: type[Command], args, caller) -> str:
+        if caller.role == AgentRole.SUPERVISOR:
+            return self.role_file(caller.role).refusal(command, args, caller)
+        allowed = self.helper_verbs(caller.role)
+        return f"a {caller.role.value} may not run journal {args.noun} {args.verb}: {self.helper_file(caller.role)} names the verbs it runs, {', '.join(allowed) or 'no journal command'}"
 
     def helper_file(self, role: AgentRole) -> str:
         return self.helper(role).__name__
@@ -94,7 +102,7 @@ class Registry:
         return tuple(f"journal {command.noun} {verb}" for command, verbs in self.helper(role).commands for verb in verbs)
 
     def roles(self) -> tuple[AgentRole, ...]:
-        return (AgentRole.MAIN, *self._helpers)
+        return (AgentRole.MAIN, AgentRole.SUPERVISOR, *self._helpers)
 
     def owning_feature(self, registered: type) -> str:
         return self._feature_names.get(registered, ENGINE)

@@ -3,7 +3,8 @@ from dataclasses import dataclass, replace
 
 from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
-from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT, Caller
+from journal.models.supervisor_grant import SupervisorGrant
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT, SUPERVISOR_TOKEN, Caller
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,9 @@ class CallerVariables:
     reviewer: int | None = None
     organization_seat: str = ""
     organization_rig: str = ""
+    supervisor_token: str | None = None
+    supervisor_grant: SupervisorGrant | None = None
+    supervisor_refusal: str = ""
 
     @classmethod
     def read(cls, environ: Mapping[str, str], provider: str, session_variables: tuple[str, ...], markers: tuple[str, ...]) -> "CallerVariables":
@@ -32,21 +36,24 @@ class CallerVariables:
         return cls(set_variables.get("JOURNAL_ENV", "main"), provider, any(name in set_variables for name in (*markers, AGENT_SHELL)), session,
                    set_variables.get("JOURNAL_PLUGIN"), set_variables.get("JOURNAL_PLUGIN_TOKEN"), Actor.stamp_number(actor, ActorType.WORKER), set_variables.get("JOURNAL_LAUNCH"),
                    Actor.stamp_number(actor, ActorType.VERIFIER), set_variables.get(ACTOR_TOKEN), Actor.stamp_number(actor, ActorType.REVIEWER),
-                   set_variables.get(ORGANIZATION_SEAT, ""), set_variables.get(ORGANIZATION_RIG, ""))
+                   set_variables.get(ORGANIZATION_SEAT, ""), set_variables.get(ORGANIZATION_RIG, ""), set_variables.get(SUPERVISOR_TOKEN))
 
     @classmethod
     def parsed(cls, body: dict, provider: str) -> "CallerVariables":
         fields = {key: value for key, value in body.items() if value not in ("", None)}
         return cls(fields.get("env", "main"), fields.get("provider", provider), bool(fields.get("agent")), fields.get("session"), fields.get("plugin"), fields.get("token"), fields.get("worker"), fields.get("launch"),
-                   fields.get("verifier"), fields.get("actor_token"), fields.get("reviewer"), fields.get("organization_seat", ""), fields.get("organization_rig", ""))
+                   fields.get("verifier"), fields.get("actor_token"), fields.get("reviewer"), fields.get("organization_seat", ""), fields.get("organization_rig", ""),
+                   fields.get("supervisor_token"))
 
     def body(self) -> dict:
         return {"env": self.environment, "provider": self.provider, "agent": self.agent_shell, "session": self.session, "plugin": self.plugin, "token": self.token, "worker": self.worker, "launch": self.launch,
                 "verifier": self.verifier, "actor_token": self.actor_token, "reviewer": self.reviewer, "organization_seat": self.organization_seat,
-                "organization_rig": self.organization_rig}
+                "organization_rig": self.organization_rig, "supervisor_token": self.supervisor_token}
 
     def caller(self) -> Caller:
-        if self.plugin is not None:
+        if self.plugin is not None and self.supervisor_grant is not None:
+            caller = Caller.supervisor(self.environment, self.plugin, self.supervisor_grant)
+        elif self.plugin is not None:
             caller = Caller.plugin(self.environment, self.plugin)
         elif self.worker is not None:
             caller = Caller.worker(self.environment, self.worker, self.session, self.provider)

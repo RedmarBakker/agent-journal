@@ -100,8 +100,8 @@ class Console:
 
     def perform(self, args: argparse.Namespace, caller: Caller) -> int:
         command = self.table(caller.role)[args.noun]
-        if not self.verb_rules.runs_verb(type(command), args.verb, caller.role):
-            raise Rejection(self.refusal(args, caller.role))
+        if not self.verb_rules.runs_verb(type(command), args.verb, caller.role, caller, args):
+            raise Rejection(self.refusal(args, caller))
         if self.row_verbs.has(args.noun, args.verb):
             return self.row_verbs.perform(args, caller)
         code = command.perform(args, caller)
@@ -109,9 +109,8 @@ class Console:
             print(f"\n{line.heading()}\n{self.chained_text(line, caller)}")
         return code
 
-    def refusal(self, args: argparse.Namespace, role: AgentRole) -> str:
-        allowed = self.verb_rules.helper_verbs(role)
-        return f"a {role.value} may not run journal {args.noun} {args.verb}: {self.verb_rules.helper_file(role)} names the verbs it runs, {', '.join(allowed) or 'no journal command'}"
+    def refusal(self, args: argparse.Namespace, caller: Caller) -> str:
+        return self.verb_rules.refusal(type(self.table(caller.role)[args.noun]), args, caller)
 
     def chained_text(self, line: ChainedLine, caller: Caller) -> str:
         return (self.journal_text(line, caller) if line.is_journal() else self.shell.output(line.text)).rstrip() or "nothing"

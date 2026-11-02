@@ -274,6 +274,14 @@ class SupervisorAuthority:
             raise SupervisorFailure(403, "the supervisor grant no longer matches its diagnostic template")
         return grant
 
+    def command_grant(self, token: str, environment_id: int) -> SupervisorGrant:
+        principal = self.authenticate(token)
+        entry, grant = self._active_grant(principal)
+        permissions = SupervisorGrant.stored(self._grant_v2(entry, grant))
+        if permissions.environment_id != environment_id:
+            raise SupervisorFailure(403, "the supervisor service credential does not cover this environment")
+        return permissions
+
     def action_context(self, principal: SupervisorPrincipal) -> tuple[dict[str, Any], dict[str, Any]]:
         entry, grant = self._active_grant(principal)
         plan = self._plan(grant["plan_id"])

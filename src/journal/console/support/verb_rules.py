@@ -2,6 +2,7 @@ from typing import Protocol, runtime_checkable
 
 from journal.console.command import Command
 from journal.support.agent_role import AgentRole
+from journal.support.caller import Caller
 
 
 @runtime_checkable
@@ -10,7 +11,9 @@ class VerbRules(Protocol):
 
     def roles(self) -> tuple[AgentRole, ...]: ...
 
-    def runs_verb(self, command: type[Command], verb: str, role: AgentRole) -> bool: ...
+    def runs_verb(self, command: type[Command], verb: str, role: AgentRole, caller: Caller | None = None, args=None) -> bool: ...
+
+    def refusal(self, command: type[Command], args, caller: Caller) -> str: ...
 
     def helper_file(self, role: AgentRole) -> str: ...
 

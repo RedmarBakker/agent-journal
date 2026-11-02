@@ -49,7 +49,7 @@ from journal.repositories.agents import Agents
 from journal.support.researcher_session import ResearcherSession
 from journal.console.support.outcome import Outcome
 from tests.full_project import MAIN
-from tests.in_process import get_answer, posted, posted_without_listener_drain
+from tests.in_process import get_answer, posted, posted_without_listener_drain, routed
 from tests.agent_hooks import pass_time, story_seconds
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
@@ -221,8 +221,22 @@ class AgentSteps:
         return self.record_command(f"agent runs {' '.join(arguments[:2] + flags)}{', refused' if outcome.code else ''}", outcome)
 
     def supervisor_runs_read_command(self, agent: StoryAgent, line: str = "task list") -> StepResult:
+        return self.supervisor_runs_command(agent, line)
+
+    def supervisor_runs_command(self, agent: StoryAgent, line: str, grant_credential: str | None = None) -> StepResult:
         caller = self.caller_of(agent)
-        return self.plugin_runs_with_token(caller.plugin_name, agent.credential, line, caller.environment)
+        credential = grant_credential if grant_credential is not None else agent.grant_credential
+        arguments = shlex.split(line)
+        environ = "\0".join((
+            f"JOURNAL_ENV={caller.environment}", f"JOURNAL_PLUGIN={caller.plugin_name}",
+            f"JOURNAL_PLUGIN_TOKEN={agent.credential}", f"JOURNAL_SUPERVISOR_ADMISSION_TOKEN={credential}",
+        ))
+        words = "".join(f"{word}\0" for word in arguments)
+        answer = routed(self.app, "POST", "/cli/run", (environ + "\0\0" + words).encode(),
+                        {**MAIN, "Content-Type": "application/octet-stream", "X-Journal-Env": caller.environment})
+        text = b"".join(answer.blocks).decode()
+        printed, code = text.rsplit("__journal_exit ", 1)
+        return self.record_command(f"the supervisor runs {' '.join(arguments[:2])}", Outcome(int(code.splitlines()[0]), printed))
 
     def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
@@ -737,9 +751,12 @@ class AgentSteps:
     def plugin_runs(self, plugin: str, line: str) -> StepResult:
         return self.plugin_runs_with_token(plugin, self.app.container.get(PluginTokens).build(plugin), line)
 
-    def plugin_runs_with_token(self, plugin: str, token: str, line: str, environment: str = "main") -> StepResult:
+    def plugin_runs_with_token(self, plugin: str, token: str, line: str, environment: str = "main", supervisor_token: str | None = None) -> StepResult:
         arguments = shlex.split(line)
-        status, answer = posted(self.app, "/cli", {"argv": arguments, "env": environment, "plugin": plugin, "token": token}, MAIN)
+        body = {"argv": arguments, "env": environment, "plugin": plugin, "token": token}
+        if supervisor_token is not None:
+            body["supervisor_token"] = supervisor_token
+        status, answer = posted(self.app, "/cli", body, MAIN)
         outcome = Outcome(answer["code"], answer["text"], answer.get("error", "")) if status < 300 else Outcome(status, "", answer.get("error", ""))
         return self.record_command(f"the plugin runs {' '.join(arguments[:2])}", outcome, environment)
 

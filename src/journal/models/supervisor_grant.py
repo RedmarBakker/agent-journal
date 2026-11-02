@@ -32,14 +32,26 @@ class SupervisorGrant:
 
     @classmethod
     def parsed(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
-        data = cls._object(value, {
+        data = cls._fields(value)
+        return cls._converted(data, cls._capabilities(data["capabilities"], catalogue))
+
+    @classmethod
+    def stored(cls, value: object) -> "SupervisorGrant":
+        data = cls._fields(value)
+        return cls._converted(data, cls._stored_capabilities(data["capabilities"]))
+
+    @classmethod
+    def _fields(cls, value: object) -> dict:
+        return cls._object(value, {
             "owner_user_id", "environment_id", "watched_plans", "capabilities", "wake_interval_minutes",
             "event_wakeups", "limits", "valid_until_ms", "paused", "revoked",
         })
+
+    @classmethod
+    def _converted(cls, data: dict, capabilities: tuple[tuple[str, bool, str], ...]) -> "SupervisorGrant":
         owner = cls._integer(data["owner_user_id"], 1)
         environment = cls._integer(data["environment_id"], 1)
         plans = cls._plans(data["watched_plans"])
-        capabilities = cls._capabilities(data["capabilities"], catalogue)
         interval = data["wake_interval_minutes"]
         if type(interval) is not int or interval not in (15, 30, 60):
             raise ValueError("the supervisor grant wake interval must be 15, 30 or 60 minutes")
@@ -86,26 +98,38 @@ class SupervisorGrant:
 
     @classmethod
     def _capabilities(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> tuple[tuple[str, bool, str], ...]:
-        if not isinstance(value, dict):
-            raise ValueError("the supervisor grant capabilities must be an object")
         result = []
-        for selector, raw in value.items():
-            setting = cls._object(raw, {"on", "mode"})
-            if type(setting["on"]) is not bool or setting["mode"] not in ("propose", "act"):
-                raise ValueError("the supervisor grant capability must choose On or Off and Propose or Act")
+        for selector, enabled, mode in cls._capability_settings(value):
             matches = cls._matches(selector, catalogue)
             if not matches:
                 if isinstance(selector, str) and selector.startswith("area:"):
                     raise ValueError("the supervisor grant area is not in the catalogue")
                 raise ValueError("the supervisor grant capability is not in the catalogue")
-            if setting["on"]:
+            if enabled:
                 tiers = [tier for _area, tier in matches]
-                if "never" in tiers or setting["mode"] == "act" and 3 in tiers:
+                if "never" in tiers or mode == "act" and 3 in tiers:
                     raise ValueError("the supervisor grant capability mode exceeds its safety tier")
                 if any(tier not in (1, 2, 3) for tier in tiers):
                     raise ValueError("the supervisor grant capability has an unknown safety tier")
-            result.append((selector, setting["on"], setting["mode"]))
+            result.append((selector, enabled, mode))
         return tuple(sorted(result))
+
+    @classmethod
+    def _stored_capabilities(cls, value: object) -> tuple[tuple[str, bool, str], ...]:
+        return tuple(sorted(cls._capability_settings(value)))
+
+    @classmethod
+    def _capability_settings(cls, value: object) -> list[tuple[str, bool, str]]:
+        if not isinstance(value, dict):
+            raise ValueError("the supervisor grant capabilities must be an object")
+        result = []
+        for selector, raw in value.items():
+            setting = cls._object(raw, {"on", "mode"})
+            if (not isinstance(selector, str) or not selector or type(setting["on"]) is not bool
+                    or setting["mode"] not in ("propose", "act")):
+                raise ValueError("the supervisor grant capability must choose On or Off and Propose or Act")
+            result.append((selector, setting["on"], setting["mode"]))
+        return result
 
     @staticmethod
     def _matches(selector: object, catalogue: Mapping[str, tuple[str, int | str]]) -> list[tuple[str, int | str]]:

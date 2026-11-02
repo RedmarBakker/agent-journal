@@ -43,7 +43,7 @@ class MainRole(Role):
         return True
 
     @classmethod
-    def runs(cls, command: type[Command], verb: str) -> bool:
+    def runs(cls, command: type[Command], verb: str, caller=None, args=None) -> bool:
         return True
 
     @classmethod

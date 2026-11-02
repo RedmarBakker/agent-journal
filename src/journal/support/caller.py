@@ -7,6 +7,7 @@ from journal.models.agent import Agent
 from journal.repositories.origin import Origin
 from journal.models.support.ref import Ref
 from journal.models.worker import Worker
+from journal.models.supervisor_grant import SupervisorGrant
 
 LOCAL_USER = 1
 
@@ -16,6 +17,7 @@ ACTOR = "JOURNAL_ACTOR"
 ACTOR_TOKEN = "JOURNAL_ACTOR_TOKEN"
 ORGANIZATION_SEAT = "JOURNAL_ORGANIZATION_SEAT"
 ORGANIZATION_RIG = "JOURNAL_ORGANIZATION_RIG"
+SUPERVISOR_TOKEN = "JOURNAL_SUPERVISOR_ADMISSION_TOKEN"
 
 AGENT_REQUIRED = "no agent runs this: only an agent's own session can"
 
@@ -37,6 +39,7 @@ class Caller:
     organization_seat: str = ""
     organization_rig: str = ""
     actor_token: str = ""
+    supervisor_grant: SupervisorGrant | None = None
 
     def holder_ref(self) -> Ref | None:
         if self.is_worker():
@@ -66,6 +69,10 @@ class Caller:
         return cls(environment, plugin_name=name)
 
     @classmethod
+    def supervisor(cls, environment: str, plugin_name: str, grant: SupervisorGrant) -> "Caller":
+        return cls(environment, plugin_name=plugin_name, supervisor_grant=grant)
+
+    @classmethod
     def worker(cls, environment: str, number: int, session: str | None, provider: str) -> "Caller":
         return cls(environment, session, provider, worker_number=number)
 
@@ -83,7 +90,7 @@ class Caller:
     @property
     def role(self) -> AgentRole:
         if self.is_plugin():
-            return AgentRole.PLUGIN
+            return AgentRole.SUPERVISOR if self.supervisor_grant is not None else AgentRole.PLUGIN
         return AgentRole.SUBAGENT if self.subagent else self.session_role
 
     @property
