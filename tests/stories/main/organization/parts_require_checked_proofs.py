@@ -65,12 +65,16 @@ def test_a_domain_checks_unchecked_role_proofs_before_returning_parts_to_the_pla
     ).expect_command_passed()
 
     story.organization_seat_goes_idle(domain, "domain:alpha")
+    first_merge = story.worker_merge_waiter(first_worker.number)
     story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"worker merge {first_worker.number}",
     ).expect_command_passed()
+    first_merge.wait()
+    second_merge = story.worker_merge_waiter(second_worker.number)
     story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"worker merge {second_worker.number}",
     ).expect_command_passed()
+    second_merge.wait()
 
     story.expect_task(first_part, state=TaskState.COMPLETED)
     story.expect_task(second_part, state=TaskState.COMPLETED)

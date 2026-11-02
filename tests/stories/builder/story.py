@@ -1,4 +1,5 @@
 from journal.console.support.outcome import Outcome
+from journal.events.bus import Bus
 from journal.support.agent_role import AgentRole
 from journal.support.agent_token import AgentToken
 from journal.supervisor_authority import SUPERVISOR_ACTOR, SupervisorAuthority
@@ -39,6 +40,7 @@ from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.step_result import StepResult
 from tests.stories.builder.story_checks import StoryChecks
 from tests.stories.builder.story_rows import StoryRows
+from tests.stories.builder.worker_merge_wait import WorkerMergeWait
 from tests.stories.builder.user_steps import UserSteps
 from tests.stories.fixtures.state_fixture import StateFixture
 
@@ -128,6 +130,9 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         if self.openrig is not None and WorkerRunner.start is self.app.original_worker_start:
             self.settle_seat_jobs()
         self.app.container.get(ListenerQueue).drain()
+
+    def worker_merge_waiter(self, worker: int) -> WorkerMergeWait:
+        return WorkerMergeWait(self.app.container.get(Bus), worker)
 
     def settle_seat_jobs(self) -> None:
         runner = self.app.container.get(WorkerRunner)
