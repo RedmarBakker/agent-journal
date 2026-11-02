@@ -327,6 +327,51 @@ def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
     assert completed.stdout.strip() == sys.prefix
 
 
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None
+                    or shutil.which("node") is None,
+                    reason="Node CLI probe uses macOS sandbox-exec and the installed Node interpreter")
+def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, monkeypatch):
+    root = tmp_path / "private-run"
+    paths = IsolatedJournal.paths(root)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    source = Path(__file__).resolve().parents[2]
+    (paths["project"] / "src").mkdir()
+    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    cli_directory = paths["project"] / "agent-clis"
+    cli_directory.mkdir()
+    provider = cli_directory / "claude"
+    provider.write_text(
+        "#!/usr/bin/env node\n"
+        "if (process.argv.includes('--version')) console.log('stand-in-node-cli 1.0');\n"
+        "else process.exit(7);\n",
+        encoding="utf-8",
+    )
+    provider.chmod(0o700)
+    rig = cli_directory / "rig"
+    rig.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    rig.chmod(0o700)
+    node = Path(shutil.which("node")).resolve()
+    executables = {"claude": provider, "rig": rig, "node": node}
+    monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
+    manifest = SimpleNamespace(data=lambda: {"design": {"settings": {}}})
+    driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
+                              ProductionWatchdog())
+    driver.boundary.verify("run-1", paths)
+    IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+    driver.env = driver.child_environment(paths, driver.journal_port)
+
+    result = driver.probe_agent_cli(paths)
+
+    policy = driver.boundary.profile.read_text(encoding="utf-8")
+    assert result == {"provider": "claude", "version": "stand-in-node-cli 1.0"}
+    assert (paths["bin"] / "node").resolve() == node
+    assert f'(allow file-read* (literal {json.dumps(str(node))}))' in policy
+    assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
+    assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
+
+
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
                     reason="production filesystem isolation uses macOS sandbox-exec")
 def test_production_journal_server_answers_health_under_its_real_boundary(tmp_path):

@@ -167,6 +167,9 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
             driver.plan_prepared = True
             return f"plan-{driver.run_id}"
 
+        def probe_agent_cli(_paths):
+            return {"provider": driver.spec["provider"], "version": "stand-in-cli 1.0"}
+
         def wait_for_end_or_cap(current_run_id, _plan_id, caps):
             try:
                 if driver.spec.get("simulate_live_hook_cap"):
@@ -208,6 +211,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         driver.load_scenario = lambda _scenario, _paths: spec
         driver.start_plan = start_plan
         driver.prepare_plan = prepare_plan
+        driver.probe_agent_cli = probe_agent_cli
         driver.wait_for_end_or_cap = wait_for_end_or_cap
         driver.stop_owned = lambda current_run_id: stop(current_run_id, "run finished")
         driver.read_record = read_record
@@ -411,6 +415,7 @@ def test_run_real_setup_only_prepares_every_root_without_starting_an_agent_or_pr
         driver = drivers[setup["run_id"]]
         assert setup["status"] == "ready"
         assert setup["agent_started"] is False and setup["provider_started"] is False
+        assert setup["agent_cli_probe"] == {"provider": driver.spec["provider"], "version": "stand-in-cli 1.0"}
         assert setup["journal_commit"] == JOURNAL_COMMIT and setup["organization_commit"] == ORGANIZATION_COMMIT
         assert (evidence_file.parent / "isolation-start.json").is_file()
         assert (evidence_file.parent / "isolation-observation.json").is_file()

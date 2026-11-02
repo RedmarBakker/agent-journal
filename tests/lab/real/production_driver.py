@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shlex
 import shutil
 import signal
 import socket
@@ -35,9 +36,17 @@ class ProductionDriver:
                       (virtual_environment / "bin").resolve(), Path(sys.base_prefix).resolve()]
         read_paths.extend(Path(path).resolve() for path in sys.path
                           if path and "site-packages" in path and Path(path).exists())
+        self.cli_interpreters: dict[str, Path] = {}
         for program in (str(spec["provider"]), "rig"):
             if executable := self.executable(program):
                 read_paths.append(executable.parent)
+                if interpreter := self.cli_interpreter(executable):
+                    name, path, uses_path = interpreter
+                    read_paths.append(path)
+                    if uses_path:
+                        if name in self.cli_interpreters and self.cli_interpreters[name] != path:
+                            raise ValueError(f"agent CLIs require different {name} interpreters")
+                        self.cli_interpreters[name] = path
         self.boundary = ProductionBoundary(
             run_id,
             (self.journal_port, self.rig_port, self.cap_port, self.proxy_port, self.share_port),
@@ -103,6 +112,8 @@ class ProductionDriver:
         cli, rig = self.executable(provider), self.executable("rig")
         if not cli or not rig:
             raise ValueError("the signed-in provider CLI and OpenRig CLI must be installed")
+        for name, interpreter in self.cli_interpreters.items():
+            self.install_executable(paths, name, interpreter)
         self.install_executable(paths, provider, cli)
         self.install_executable(paths, "rig", rig)
         path_entries = tuple(dict.fromkeys((cli.parent, rig.parent, Path("/usr/bin"),
@@ -131,6 +142,16 @@ class ProductionDriver:
             "GIT_TERMINAL_PROMPT": "0",
         })
         return env
+
+    def probe_agent_cli(self, paths: Mapping[str, Path]) -> dict[str, str]:
+        provider = str(self.spec["provider"])
+        result = self.command([str(paths["bin"] / provider), "--version"], paths)
+        if result.returncode:
+            raise ValueError(result.stderr.strip() or f"{provider} CLI version probe failed")
+        version = result.stdout.strip() or result.stderr.strip()
+        if not version:
+            raise ValueError(f"{provider} CLI version probe returned no version")
+        return {"provider": provider, "version": version.splitlines()[0]}
 
     def prepare_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> str:
         setup = self.setup_scenario(scenario, paths)
@@ -374,6 +395,36 @@ print(plan["plan_id"])
     def executable(program: str) -> Path | None:
         selected = shutil.which(program)
         return Path(selected).resolve() if selected else None
+
+    @staticmethod
+    def cli_interpreter(executable: Path) -> tuple[str, Path, bool] | None:
+        if not executable.is_file():
+            return None
+        with executable.open("rb") as source:
+            first_line = source.readline().decode("utf-8", "replace").strip()
+        if not first_line.startswith("#!"):
+            return None
+        command = shlex.split(first_line[2:])
+        if not command:
+            raise ValueError(f"agent CLI has an empty interpreter declaration: {executable}")
+        if Path(command[0]).name == "env":
+            if len(command) == 2:
+                name = command[1]
+            elif len(command) > 2 and command[1] == "-S":
+                split_command = shlex.split(" ".join(command[2:]))
+                if not split_command:
+                    raise ValueError(f"agent CLI has an empty env interpreter declaration: {executable}")
+                name = split_command[0]
+            else:
+                raise ValueError(f"agent CLI has an unsupported env interpreter declaration: {executable}")
+            selected = shutil.which(name)
+            if not selected:
+                raise ValueError(f"agent CLI requires an installed {name} interpreter")
+            return name, Path(selected).resolve(), True
+        path = Path(command[0]).resolve()
+        if not path.is_file():
+            raise ValueError(f"agent CLI interpreter does not exist: {path}")
+        return path.name, path, False
 
     @staticmethod
     def install_executable(paths: Mapping[str, Path], name: str, executable: Path) -> Path:
