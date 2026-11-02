@@ -5,7 +5,7 @@ from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
-from tests.stories.fixtures.main.report_sized_plan_with_dependent_task import ReportSizedPlanWithDependentTask
+from tests.stories.fixtures.main.report_sized_plan_with_independent_task_started import ReportSizedPlanWithIndependentTaskStarted
 
 
 @story(ReportSizedPlan, subject=AgentRole.MAIN)
@@ -67,20 +67,12 @@ def test_a_plan_forecast_names_an_unresolved_cross_plan_delivery_gate(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlanWithDependentTask, subject=AgentRole.MAIN)
+@story(ReportSizedPlanWithIndependentTaskStarted, subject=AgentRole.MAIN)
 def test_a_plan_builder_is_told_about_a_truly_independent_task(story):
     prerequisite = story.tasks.first
     dependent_id = story.tasks.second
-    independent = story.agent_runs(
-        story.agents.subject,
-        f"plan add {story.plans.first} 'notify' --brief 'the release notice is published' "
-        "--domain development --size 2 --phase 1",
-    )
-    independent.expect_command_passed()
-    independent_id = story.created_number("task")
-    story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}").expect_command_passed()
-    story.user_approves_plan(story.plans.first)
-    story.agent_runs(story.agents.subject, f"plan start {story.plans.first}").expect_command_passed()
+    independent_id = story.tasks.third
+    story.agent_runs(story.agents.subject, f"plan show {story.plans.first}").expect_command_passed()
 
     result = story.agent_stops(story.agents.subject)
 

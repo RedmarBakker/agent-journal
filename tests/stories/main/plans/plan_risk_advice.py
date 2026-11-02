@@ -7,7 +7,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.paused_plan import PausedPlan
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
-from tests.stories.fixtures.main.report_sized_plan_with_dependent_task import ReportSizedPlanWithDependentTask
+from tests.stories.fixtures.main.report_sized_plan_with_independent_task_started import ReportSizedPlanWithIndependentTaskStarted
 from tests.stories.fixtures.main.solo_report_sized_plan import SoloReportSizedPlan
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 
@@ -81,13 +81,11 @@ def test_an_owner_paused_plan_stays_paused_when_the_agent_ticks(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlanWithDependentTask, subject=AgentRole.MAIN)
+@story(ReportSizedPlanWithIndependentTaskStarted, subject=AgentRole.MAIN)
 def test_an_open_critical_prerequisite_is_advised_without_changing_the_dependency(story):
     prerequisite = story.tasks.first
     dependent = story.tasks.second
-    story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
-    story.user_approves_plan(story.plans.first)
-    story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
+    story.agent_runs(story.agents.subject, f"task show {prerequisite}").expect_command_passed()
 
     result = story.agent_stops(story.agents.subject)
     result.expect_agent_told_words(story.agents.subject, EstimatesNudges.CRITICAL_PREREQUISITE, f"task {dependent}")
