@@ -28,6 +28,7 @@ from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_link import SupervisorLink
+from supervisor_bridge.proposal_evaluation import load_seed
 
 ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
@@ -45,6 +46,7 @@ TEMPLATE_BRIEF = "Read the deliberately failing smoke check and prepare one boun
 TEMPLATE_PURPOSE = "diagnose the failed service check"
 CHECK_COMMAND = "false"
 WAIT_SECONDS = 300
+CASE_SEED_FILE = Path("/run/journal-proposal-case-seed.json")
 
 
 class SetupFailure(Exception):
@@ -100,7 +102,32 @@ def require_runtime(app):
     return main
 
 
-def setup_plan_matches(plan, phases, tasks):
+def wait_for_owner_runtime(app):
+    deadline = time.monotonic() + WAIT_SECONDS
+    while time.monotonic() < deadline:
+        app.container.get(Connection).cache.cleared()
+        try:
+            return require_runtime(app)
+        except SetupFailure as error:
+            if str(error) != "start the owner's real Codex session on the designated writer before setup":
+                raise
+            time.sleep(1)
+    raise SetupFailure("the owner-started Codex session did not become live in the writer")
+
+
+def setup_plan_matches(plan, phases, tasks, seed=None):
+    if seed is not None:
+        return (
+            plan.title == seed["plan"]["title"]
+            and plan.brief == seed["plan"]["brief"]
+            and plan.state == PlanState.STARTED
+            and plan.mode == PlanMode.SOLO
+            and plan.mode_chosen
+            and len(phases) == 1
+            and phases[0].title == f"Evaluation phase {seed['case_id']}"
+            and phases[0].completion_rule == PHASE_COMPLETION
+            and smoke_tasks_match(tasks, seed)
+        )
     return (
         plan.title == PLAN_TITLE
         and plan.brief == PLAN_BRIEF
@@ -114,17 +141,23 @@ def setup_plan_matches(plan, phases, tasks):
     )
 
 
-def smoke_tasks_match(tasks):
+def smoke_tasks_match(tasks, seed=None):
     if len(tasks) != 1:
         return False
     task, = tasks
+    if seed is not None:
+        return (task.title == seed["tasks"]["title"] and task.brief == seed["tasks"]["brief"]
+                and task.state == TaskState.OPEN and task.supervisor_reserved)
     return (task.title == TASK_TITLE and task.brief == TASK_BRIEF
             and task.state == TaskState.OPEN and task.supervisor_reserved)
 
 
-def setup_check_id(app):
-    rows = [check for check in app.container.get(Checks).matching(title=CHECK_TITLE)
-            if check.brief == CHECK_BRIEF and check.command == CHECK_COMMAND
+def setup_check_id(app, seed=None):
+    title = seed["checks"]["title"] if seed else CHECK_TITLE
+    brief = seed["checks"]["brief"] if seed else CHECK_BRIEF
+    command_text = seed["checks"]["command"] if seed else CHECK_COMMAND
+    rows = [check for check in app.container.get(Checks).matching(title=title)
+            if check.brief == brief and check.command == command_text
             and check.interval == 10 and not check.wait_target and not check.is_retired]
     if len(rows) != 1:
         raise SetupFailure("the staged supervisor setup check is missing or ambiguous")
@@ -140,26 +173,33 @@ def setup_template_id(app):
     return str(rows[0].row_id)
 
 
-def resume_plan(app, main, plan_id):
+def resume_plan(app, main, plan_id, seed=None):
     scope = app.container.get(Scope)
     plans = app.container.get(Plans)
     with scope.environment(main.row_id):
         plan = plans.find(plan_id)
         phases = plans.plan_phases(plan)
         tasks = plans.plan_tasks(plan)
-    if not setup_plan_matches(plan, phases, tasks):
+    if seed is None:
+        matches = setup_plan_matches(plan, phases, tasks)
+    else:
+        matches = setup_plan_matches(plan, phases, tasks, seed)
+    if not matches:
         raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
     authority = app.container.get(SupervisorAuthority)
     if authority.has_enrollment_grant():
         raise SetupFailure("a supervisor enrollment grant already exists in this writer")
-    return plan_id, setup_check_id(app), setup_template_id(app)
+    if seed is None:
+        return plan_id, setup_check_id(app), setup_template_id(app)
+    return plan_id, setup_check_id(app, seed), setup_template_id(app)
 
 
-def existing_plan_id(output):
+def existing_plan_id(output, seed=None):
+    title = seed["plan"]["title"] if seed else PLAN_TITLE
     matches = []
     for line in output.splitlines():
         fields = line.split(maxsplit=2)
-        if len(fields) == 3 and fields[2] == PLAN_TITLE:
+        if len(fields) == 3 and fields[2] == title:
             if not fields[0].isdigit():
                 raise SetupFailure("the journal returned an unexpected row number for the live smoke plan")
             matches.append(int(fields[0]))
@@ -168,10 +208,15 @@ def existing_plan_id(output):
     return matches[0] if matches else None
 
 
-def make_plan(app, main):
+def make_plan(app, main, seed=None):
     existing = command("plan", "list")
-    if plan_id := existing_plan_id(existing):
-        return resume_plan(app, main, plan_id)
+    if seed is None:
+        if plan_id := existing_plan_id(existing):
+            return resume_plan(app, main, plan_id)
+    elif plan_id := existing_plan_id(existing, seed):
+        return resume_plan(app, main, plan_id, seed)
+    if seed is not None:
+        return make_case_plan(app, seed)
     plan_id = row_number(command("plan", "create", PLAN_TITLE, "--brief", PLAN_BRIEF), r"plan (\d+) draft")
     command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
     command("plan", "phase", str(plan_id), PHASE_TITLE, "--when", PHASE_COMPLETION)
@@ -188,7 +233,24 @@ def make_plan(app, main):
     return plan_id, check_id, template_id
 
 
-def ensure_smoke_task(app, main, plan_id):
+def make_case_plan(app, seed):
+    plan_id = row_number(command("plan", "create", seed["plan"]["title"], "--brief", seed["plan"]["brief"]), r"plan (\d+) draft")
+    command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
+    command("plan", "phase", str(plan_id), f"Evaluation phase {seed['case_id']}", "--when", PHASE_COMPLETION)
+    task_id = row_number(command("plan", "add", str(plan_id), seed["tasks"]["title"], "--brief", seed["tasks"]["brief"], "--phase", "1"), r"task (\d+) added to plan .+")
+    status, _headers, task = request(f"/journal/tasks/{task_id}", {"supervisor_reserved": True})
+    if status != 200 or task.get("supervisor_reserved") is not True:
+        raise SetupFailure("the owner could not reserve the evaluation task for supervisor diagnosis")
+    check_id = row_number(command("check", "create", seed["checks"]["title"], "--command", seed["checks"]["command"], "--brief", seed["checks"]["brief"], "--every", "10"), r"check (\d+): .+")
+    template_id = row_number(command("template", "create", TEMPLATE_TITLE, "--brief", TEMPLATE_BRIEF, "--applies-to", "plan", "--purpose", TEMPLATE_PURPOSE), r"template (\d+): .+")
+    command("settings", "set", "plans.plan_agents", "on")
+    command("plan", "ready", str(plan_id))
+    command("plan", "approve", str(plan_id))
+    command("plan", "start", str(plan_id))
+    return plan_id, check_id, template_id
+
+
+def ensure_smoke_task(app, main, plan_id, seed=None):
     app.container.get(Connection).cache.cleared()
     scope = app.container.get(Scope)
     plans = app.container.get(Plans)
@@ -196,7 +258,7 @@ def ensure_smoke_task(app, main, plan_id):
     with scope.environment(main.row_id):
         plan = plans.find(plan_id)
         tasks = plans.plan_tasks(plan)
-        rows_match = smoke_tasks_match(tasks)
+        rows_match = smoke_tasks_match(tasks) if seed is None else smoke_tasks_match(tasks, seed)
         task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and tasks[0].supervisor_reserved and not tasks[0].delegated
                        and tasks_repo.holder(tasks[0]) is None
                        and not tasks_repo.unavailable_task_ids(tasks))
@@ -205,10 +267,17 @@ def ensure_smoke_task(app, main, plan_id):
         raise SetupFailure("the live Plan driver must stay idle with one open, unheld diagnostic task")
 
 
-def run_bound_check(check_id):
+def run_bound_check(check_id, seed=None):
     output = command("check", "run", str(check_id), expected_code=1)
     if not output.startswith(f"check {check_id} failed:"):
         raise SetupFailure("the enrolled smoke check did not fail as designed")
+
+
+def run_case_checks(check_id, seed):
+    for verdict in seed["checks"]["results"]:
+        output = command("check", "run", str(check_id), expected_code=1 if verdict == "failed" else 0)
+        if not output.startswith(f"check {check_id} {verdict}:"):
+            raise SetupFailure("the evaluation check did not produce its seeded result")
 
 
 def wait_for_codex_plan(app, plan_id, environment_id):
@@ -229,9 +298,10 @@ def wait_for_codex_plan(app, plan_id, environment_id):
     raise SetupFailure("the owner-started Codex Plan agent did not become live in the writer")
 
 
-def enrollment(app, plan_id, check_id, template_id):
+def enrollment(app, plan_id, check_id, template_id, seed=None):
     authority = app.container.get(SupervisorAuthority)
     context = authority.enrollment_context(plan_id, (check_id,), str(template_id))
+    check_command = seed["checks"]["command"] if seed else CHECK_COMMAND
     return {
         "protocol_version": 1,
         "plan_id": plan_id,
@@ -240,7 +310,7 @@ def enrollment(app, plan_id, check_id, template_id):
         "expected_binding_revision": context["expected_binding_revision"],
         "checks": [{
             "check_id": check_id,
-            "command_sha256": authority._command_hash(CHECK_COMMAND),
+            "command_sha256": authority._command_hash(check_command),
             "baseline_interval_minutes": 10,
             "minimum_interval_minutes": 5,
             "expected_revision": context["check_revisions"][str(check_id)],
@@ -295,12 +365,14 @@ def main():
     if len(sys.argv) != 1:
         raise SetupFailure("this setup program accepts no arguments")
     os.umask(0o077)
+    case_id = os.environ.get("JOURNAL_SUPERVISOR_CASE_ID", "").strip()
+    seed = load_seed(CASE_SEED_FILE, case_id) if case_id else None
     app = App(Config.rooted(ROOT))
-    main = require_runtime(app)
-    plan_id, check_id, template_id = make_plan(app, main)
+    main = wait_for_owner_runtime(app)
+    plan_id, check_id, template_id = make_plan(app, main, seed)
     wait_for_codex_plan(app, plan_id, main.row_id)
-    ensure_smoke_task(app, main, plan_id)
-    status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id))
+    ensure_smoke_task(app, main, plan_id, seed)
+    status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id, seed))
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""
     if status != 201 or not grant_id or not token:
@@ -308,10 +380,17 @@ def main():
             revoke(grant_id)
         raise SetupFailure("the staged journal refused fixed local-owner enrollment")
     try:
-        ensure_smoke_task(app, main, plan_id)
-        run_bound_check(check_id)
-        ensure_smoke_task(app, main, plan_id)
+        ensure_smoke_task(app, main, plan_id, seed)
+        if seed is None:
+            run_bound_check(check_id)
+        else:
+            run_case_checks(check_id, seed)
+        ensure_smoke_task(app, main, plan_id, seed)
         write_token(token)
+        if seed and (seed["plan"]["state"] == "started_paused" or seed["plan"]["owner_gate"] != "none"):
+            command("plan", "pause", str(plan_id))
+        if seed and seed["grant"] == "revoked":
+            revoke(grant_id)
     except (OSError, SetupFailure) as error:
         revoke(grant_id)
         raise SetupFailure("the enrollment credential could not be stored safely; the grant was revoked") from error

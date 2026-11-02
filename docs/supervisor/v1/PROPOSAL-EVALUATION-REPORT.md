@@ -29,3 +29,17 @@ The proposed 90% actionable-detection and 80% usefulness thresholds remain hypot
 Question 33 has not settled the live route and task 213 has not run. No metered model call or production write was made for this freeze. Accordingly, evaluated outputs: 0; failures: not measured; abstentions: not measured; independent reviewer decisions: 0; actual tokens and cost: not measured. No zero-cost or quality claim is inferred.
 
 Evaluation remains separate from B10's security acceptance and from pilot business value. It remains not done until the route and task 213 gates clear and an independently reviewed, metered evaluation is authorized.
+
+## Per-case harness
+
+The offline harness stages one named PSU case at a time and appends a raw JSONL result. It reads only each case's frozen facts for the staged plan, reserved task, check result and failure output; expected outcomes and reviewer labels are not sent to the writer. Staging stops the Compose services without removing volumes, resets only `/data/project` in `journal-supervisor-smoke_writer_state`, leaves `/data/home` and the authenticated Codex volumes in place, starts the writer and the owner's main Codex session, runs `supervisor-live-setup`, and installs the new enrollment credential. Recovery and repeated-failure cases run their check sequence; cases without current trusted evidence leave the check unrun so staging does not manufacture a fresh observation. Collection reads the Gateway bridge state and exports the writer's run, usage, observation, action and receipt rows. The actual cost is the writer's `SupervisorUsage.cost_usd`; it is left null when the run has no settled usage. Offline coverage is in `tests/test_supervisor_proposal_evaluation.py` and `tests/test_supervisor_runtime_packaging.py`.
+
+From a root shell on the designated VM, first set `PROFILE_REVISION`, `PROJECT_EXPORT` and `PROJECT_REVISION` to the reviewed values. Run these exact three commands for each case, replacing `PSU-01` with the next frozen ID:
+
+```sh
+STAGING_AUTHORIZED=1 docs/supervisor/v1/stage-proposal-case.sh PSU-01
+journal secret run 1 -- journal-supervisor-smoke
+python3 docs/supervisor/v1/collect-proposal-case.py PSU-01
+```
+
+The collector appends exactly one row for that case to `docs/supervisor/v1/proposal-evaluation-results.jsonl` and refuses duplicates. Its row contains the case ID, admission/action outcome, whether a model turn abstained, failure text, receipt latency, actual cost and the raw bridge and writer records. The case runs and reviews remain pending; no measured values or labels are asserted here.

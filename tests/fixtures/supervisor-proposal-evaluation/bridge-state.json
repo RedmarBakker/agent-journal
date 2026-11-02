@@ -1,0 +1,31 @@
+{
+  "active_run": null,
+  "last_admission": "admitted",
+  "last_error": "",
+  "receipt": {
+    "action_id": "action-psu-01",
+    "run_id": "run-psu-01",
+    "fence": 1,
+    "status": "applied",
+    "verification": "verified",
+    "outcome": "useful_evidence",
+    "usage": {
+      "input_tokens": 16000,
+      "output_tokens": 612,
+      "provider_requests": 3,
+      "provider_retries": 0
+    }
+  },
+  "metering": {
+    "run_ref": {
+      "run_id": "run-psu-01",
+      "pending_action_id": "action-psu-01",
+      "fence": 1
+    },
+    "input_tokens": 16000,
+    "output_tokens": 612,
+    "provider_requests": 3,
+    "provider_retries": 0,
+    "status": "settled"
+  }
+}

@@ -46,7 +46,15 @@ compose exec --user 10003:10003 -T writer /usr/local/bin/supervisor-codex-ready
 STAGING_DIR=$(mktemp -d "$SECRET_SOURCE_DIR/.supervisor-setup.XXXXXX")
 chmod 0700 "$STAGING_DIR"
 trap 'rm -rf "$STAGING_DIR"' EXIT HUP INT TERM
-compose exec --user journal -T writer /usr/local/bin/supervisor-live-setup
+if [ -n "${JOURNAL_SUPERVISOR_CASE_ID:-}" ]; then
+    case "$JOURNAL_SUPERVISOR_CASE_ID" in
+        PSU-[0-9][0-9]) ;;
+        *) echo "JOURNAL_SUPERVISOR_CASE_ID must be a frozen PSU case id" >&2; exit 2 ;;
+    esac
+    compose exec --env "JOURNAL_SUPERVISOR_CASE_ID=$JOURNAL_SUPERVISOR_CASE_ID" --user journal -T writer /usr/local/bin/supervisor-live-setup
+else
+    compose exec --user journal -T writer /usr/local/bin/supervisor-live-setup
+fi
 compose cp writer:/run/journal_supervisor_credential "$STAGING_DIR/journal_supervisor_credential"
 python3 - "$STAGING_DIR/journal_supervisor_credential" <<'PY'
 import re

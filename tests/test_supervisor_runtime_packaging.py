@@ -258,6 +258,7 @@ def test_writer_image_archives_and_copies_every_runtime_script():
         "docker/supervisor-codex-ready",
         "docker/supervisor-codex-plan-launcher.py",
         "docs/supervisor/v1/live-smoke-setup.py",
+        "docs/supervisor/v1/supervisor-proposal-writer-rows.py",
     )
     copies = (
         "COPY --chown=root:root src /opt/agent-journal/src",
@@ -266,6 +267,7 @@ def test_writer_image_archives_and_copies_every_runtime_script():
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/",
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher",
         "COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
+        "COPY --chown=root:root --chmod=755 docs/supervisor/v1/supervisor-proposal-writer-rows.py /usr/local/bin/supervisor-proposal-writer-rows",
     )
 
     assert all(source in archive for source in sources)
@@ -278,6 +280,8 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     assert "JOURNAL_PORT=8421" in dockerfile
     assert "EXPOSE 8421" in dockerfile
     assert "EXPOSE 8421 8440" not in dockerfile
+
+
     assert "127.0.0.1:8421/journal/health" in dockerfile
     install_script = (ROOT / "install.sh").read_text()
     assert 'if [ -d "$HERE/src/journal" ]; then' in install_script
@@ -315,6 +319,7 @@ def test_writer_image_archives_and_copies_every_runtime_script():
         ROOT / "docker" / "supervisor-codex-ready",
         ROOT / "docker" / "supervisor-codex-plan-launcher.py",
         PROFILE / "live-smoke-setup.py",
+        PROFILE / "supervisor-proposal-writer-rows.py",
         ROOT / "src" / "hosted_login.py",
     )
     assert all(script.is_file() for script in runtime_scripts)
@@ -351,6 +356,31 @@ def test_writer_image_archives_and_copies_every_runtime_script():
             module_path = ROOT / "src" / Path(*module.split("."))
             module_exists = module_path.with_suffix(".py").is_file() or (module_path / "__init__.py").is_file()
             assert module_exists, (script, module)
+
+
+def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows():
+    stage = (PROFILE / "stage-proposal-case.sh").read_text()
+    setup = (PROFILE / "setup-live-smoke.sh").read_text()
+    collector = (PROFILE / "collect-proposal-case.py").read_text()
+    writer_rows = (PROFILE / "supervisor-proposal-writer-rows.py").read_text()
+    setup_program = (PROFILE / "live-smoke-setup.py").read_text()
+    writer_build = (PROFILE / "build-writer.sh").read_text()
+    dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
+
+    assert "VOLUME=journal-supervisor-smoke_writer_state" in stage
+    assert "'rm -rf /data/project && mkdir -p /data/project'" in stage
+    assert "down --volumes" not in stage
+    assert all("/data/home" not in line for line in stage.splitlines() if "rm -rf" in line)
+    assert "seed-project.sh" in stage and "setup-live-smoke.sh" in stage
+    assert "compose cp \"$SEED_DIR/case-seed.json\" writer:/run/journal-proposal-case-seed.json" in stage
+    assert "JOURNAL_SUPERVISOR_CASE_ID" in setup and "/usr/local/bin/supervisor-live-setup" in setup
+    assert "load_seed(CASE_SEED_FILE, case_id)" in setup_program
+    assert "proposal-evaluation-cases-v1.json" not in dockerfile
+    assert "proposal-evaluation-cases-v1.json" not in writer_build
+    assert "journal-supervisor-transport" in collector
+    assert "supervisor-proposal-writer-rows" in collector
+    assert '"SupervisorActionReceipt"' in writer_rows and '"SupervisorUsage"' in writer_rows
+    assert "SupervisorCredential" not in writer_rows
 
 
 def test_hosted_compose_requires_a_private_login_before_publishing_caddy():

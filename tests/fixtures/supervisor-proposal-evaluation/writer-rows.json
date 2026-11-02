@@ -1,0 +1,32 @@
+[
+  {
+    "id": 10,
+    "entry_type": "SupervisorRun",
+    "created_at": "2026-11-02T10:00:00+00:00",
+    "data": {"run_ref": "run-psu-01", "status": "admitted"}
+  },
+  {
+    "id": 11,
+    "entry_type": "SupervisorUsage",
+    "created_at": "2026-11-02T10:00:30+00:00",
+    "data": {"run_ref": "run-psu-01", "status": "known", "cost_usd": "0.071234"}
+  },
+  {
+    "id": 12,
+    "entry_type": "SupervisorActionReceipt",
+    "created_at": "2026-11-02T10:00:42+00:00",
+    "data": {
+      "action_id": "action-psu-01",
+      "status": "applied",
+      "reason": "",
+      "intent": {"proposed_operations": [{"kind": "diagnostic_task", "plan_id": 4}]},
+      "result": {"task_id": 91}
+    }
+  },
+  {
+    "id": 13,
+    "entry_type": "SupervisorRunState",
+    "created_at": "2026-11-02T10:00:42+00:00",
+    "data": {"run_ref": "run-psu-01", "status": "complete"}
+  }
+]

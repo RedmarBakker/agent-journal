@@ -30,6 +30,7 @@ COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /u
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher
 COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup
+COPY --chown=root:root --chmod=755 docs/supervisor/v1/supervisor-proposal-writer-rows.py /usr/local/bin/supervisor-proposal-writer-rows
 
 ENV JOURNAL_PROJECT=/data/project \
     JOURNAL_ROOT=/data/project \
