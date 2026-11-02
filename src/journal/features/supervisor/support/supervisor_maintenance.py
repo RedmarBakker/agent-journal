@@ -9,6 +9,7 @@ from journal.features.supervisor.support.admissions import (
     supervisor_key,
 )
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
+from journal.features.supervisor.support.supervisor_command_changes import SupervisorCommandChanges
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.features.supervisor.support.supervisor_work_available import SupervisorWorkAvailable
 from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
@@ -57,13 +58,15 @@ class SupervisorMaintenance:
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations, entries: Entries,
                  control_entries: SupervisorEntries, plans: Plans, tasks: Tasks, links: Links, checks: Checks,
                  scope: Scope, time_source: TimeSource, work_available: SupervisorWorkAvailable,
-                 action_reports: SupervisorActionReports, wakeups: SupervisorWakeups) -> None:
+                 action_reports: SupervisorActionReports, wakeups: SupervisorWakeups,
+                 command_changes: SupervisorCommandChanges) -> None:
         self.authority, self.observations, self.entries = authority, observations, entries
         self.control_entries, self.plans, self.tasks, self.links, self.checks = control_entries, plans, tasks, links, checks
         self.scope, self.time_source = scope, time_source
         self.work_available = work_available
         self.action_reports = action_reports
         self.wakeups = wakeups
+        self.command_changes = command_changes
 
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
@@ -150,7 +153,7 @@ class SupervisorMaintenance:
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "proposed", None)
             before = self._before_values(context, request)
             before_context = self.authority.observation_context(grant)
-            affected, diagnostic, created = self._apply(grant, context, request)
+            affected, diagnostic, created, command_changes = self._apply(grant, context, request)
             readback = self.authority.action_readback(principal, grant["current_phase"]["phase_id"], context["binding_revision"])
             after = self.authority.observation_context(grant)
             self._verify_readback(grant, readback, request, diagnostic, before)
@@ -161,7 +164,10 @@ class SupervisorMaintenance:
                     {"table": "plans", "id": grant["plan_id"]},
                     {"table": "phases", "id": grant["current_phase"]["phase_id"]},
                 ])
-            receipt = self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "applied", None, affected, changes)
+            receipt = self._receipt(
+                grant, request, run.data["run_ref"], epoch, intent_hash, "applied", None,
+                affected, changes, command_changes,
+            )
             self.action_reports.baseline(receipt, before_context)
             if diagnostic is not None:
                 self.work_available.after_commit(principal, receipt, diagnostic.row_id)
@@ -599,28 +605,31 @@ class SupervisorMaintenance:
                 values["checks"][check.row_id] = check
         return values
 
-    def _apply(self, grant: dict[str, Any], context: dict[str, Any], request: dict[str, Any]) -> tuple[list[dict[str, Any]], Task | None, bool]:
+    def _apply(self, grant: dict[str, Any], context: dict[str, Any], request: dict[str, Any]) -> tuple[list[dict[str, Any]], Task | None, bool, list[list[dict[str, Any]]]]:
         actor = Actor.plugin(SUPERVISOR_ACTOR)
         plan = context["plan"]
         phase = context["current_phase_row"]
         diagnostic = None
         created = False
         affected: list[dict[str, Any]] = []
+        command_changes = []
         with self.scope.environment(plan.environment_id):
             for operation in request["operations"]:
-                if operation["kind"] == "plan_priorities":
-                    prioritized = plan.prioritised(operation["text"], context["current_phase"]["number"], self.time_source.seconds())
-                    plan = self.plans.save(prioritized, actor)
-                    affected.append({"table": "plans", "id": plan.row_id})
-                elif operation["kind"] == "diagnostic_task":
-                    diagnostic, created = self._diagnostic(grant, plan, phase, actor, request["episode_id"])
-                    affected.append({"table": "tasks", "id": diagnostic.row_id})
-                else:
-                    check = self._check(operation["check_id"])
-                    interval = operation["interval_minutes"]
-                    self.checks.save(check.with_(interval=float(interval)), actor)
-                    affected.append({"table": "checks", "id": check.row_id})
-        return affected, diagnostic, created
+                with self.command_changes.capture() as changes:
+                    if operation["kind"] == "plan_priorities":
+                        prioritized = plan.prioritised(operation["text"], context["current_phase"]["number"], self.time_source.seconds())
+                        plan = self.plans.save(prioritized, actor)
+                        affected.append({"table": "plans", "id": plan.row_id})
+                    elif operation["kind"] == "diagnostic_task":
+                        diagnostic, created = self._diagnostic(grant, plan, phase, actor, request["episode_id"])
+                        affected.append({"table": "tasks", "id": diagnostic.row_id})
+                    else:
+                        check = self._check(operation["check_id"])
+                        interval = operation["interval_minutes"]
+                        self.checks.save(check.with_(interval=float(interval)), actor)
+                        affected.append({"table": "checks", "id": check.row_id})
+                command_changes.append(changes)
+        return affected, diagnostic, created, command_changes
 
     def _diagnostic(self, grant: dict[str, Any], plan: Plan, phase: Phase,
                     actor: Actor, episode_id: str) -> tuple[Task, bool]:
@@ -721,7 +730,8 @@ class SupervisorMaintenance:
 
     def _receipt(self, grant: dict[str, Any], request: dict[str, Any], run_ref: str, epoch: int,
                  intent_hash: str, status: str, reason: str | None,
-                 affected: list[dict[str, Any]] | None = None, changes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+                 affected: list[dict[str, Any]] | None = None, changes: list[dict[str, Any]] | None = None,
+                 command_changes: list[list[dict[str, Any]]] | None = None) -> dict[str, Any]:
         scope = {**grant["scope"], "installation_epoch": epoch}
         data = {
             "protocol_version": 1, "action_id": request["action_id"], "episode_id": request["episode_id"],
@@ -733,6 +743,7 @@ class SupervisorMaintenance:
             "observation_ids": request["observation_ids"], "affected_refs": self._unique_refs(affected or []),
             "changes": changes or [], "verification": "pending" if status == "applied" else "not_applied",
             "outcome": "unmeasured", "proposed_operations": request["operations"],
+            "command_receipts": self._command_receipts(grant, request, run_ref, status, reason, command_changes),
         }
         key = action_receipt_key(scope["tenant_id"], request["action_id"])
         if reason == "action_id_reused":
@@ -742,6 +753,40 @@ class SupervisorMaintenance:
             data=data, idempotency=key,
         ), Actor.plugin(SUPERVISOR_ACTOR))
         return {"status": status, "reason": reason, "receipt_id": row.row_id, "data": row.data, "duplicate": False}
+
+    def _command_receipts(self, grant: dict[str, Any], request: dict[str, Any], run_ref: str,
+                          status: str, reason: str | None,
+                          command_changes: list[list[dict[str, Any]]] | None) -> list[dict[str, Any]]:
+        if status == "proposed":
+            return []
+        cost = self._settled_cost(grant["scope"]["tenant_id"], run_ref)
+        commands = []
+        for index, operation in enumerate(request["operations"]):
+            area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
+            commands.append({
+                "command": f"{noun} {verb}",
+                "arguments": {key: value for key, value in operation.items() if key != "kind"},
+                "area": area,
+                "tier": CAPABILITY_CATALOGUE[area][noun][verb],
+                "status": status,
+                "reason": reason,
+                "rows_changed": command_changes[index] if command_changes and index < len(command_changes) else [],
+                "readback_verification": "verified" if status == "applied" else "not_applied",
+                "settled_cost": dict(cost),
+            })
+        return commands
+
+    def _settled_cost(self, tenant_id: str, run_ref: str) -> dict[str, Any]:
+        with self.scope.environment(PROJECT):
+            rows = self.entries.supervisor_records(
+                "SupervisorUsage", last=1, tenant_id=tenant_id, run_ref=run_ref,
+            )
+        usage = rows[0].data if rows else {}
+        cost = usage.get("cost_usd")
+        usage_status = usage.get("status")
+        settled = (isinstance(usage_status, str) and usage_status in {"known", "overrun"}
+                   and isinstance(cost, str) and bool(cost))
+        return {"status": "settled" if settled else "unknown", "usd": cost if settled else None, "scope": "run"}
 
     def _prior(self, prior: Entry, intent_hash: str, grant: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         if prior.data.get("intent_sha256") == intent_hash:

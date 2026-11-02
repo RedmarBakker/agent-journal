@@ -27,6 +27,29 @@
         "id"
       ]
     },
+    "CommandRowRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "enum": [
+            "plans",
+            "phases",
+            "tasks",
+            "checks",
+            "links"
+          ]
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "table",
+        "id"
+      ]
+    },
     "Scope": {
       "type": "object",
       "additionalProperties": false,
@@ -1122,6 +1145,132 @@
         "after_value"
       ]
     },
+    "CommandRowChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event": {
+          "enum": [
+            "created",
+            "updated",
+            "deleted"
+          ]
+        },
+        "ref": {
+          "$ref": "#/$defs/CommandRowRef"
+        },
+        "before": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "after": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "event",
+        "ref",
+        "before",
+        "after"
+      ]
+    },
+    "CommandReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "tier": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "status": {
+          "enum": [
+            "applied",
+            "conflicted",
+            "rejected"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "rows_changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CommandRowChange"
+          },
+          "minItems": 0,
+          "maxItems": 15
+        },
+        "readback_verification": {
+          "enum": [
+            "verified",
+            "not_applied"
+          ]
+        },
+        "settled_cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "settled",
+                "unknown"
+              ]
+            },
+            "usd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scope": {
+              "const": "run"
+            }
+          },
+          "required": [
+            "status",
+            "usd",
+            "scope"
+          ]
+        }
+      },
+      "required": [
+        "command",
+        "arguments",
+        "area",
+        "tier",
+        "status",
+        "reason",
+        "rows_changed",
+        "readback_verification",
+        "settled_cost"
+      ]
+    },
     "Receipt": {
       "type": "object",
       "additionalProperties": false,
@@ -1245,6 +1394,14 @@
           },
           "minItems": 1,
           "maxItems": 5
+        },
+        "command_receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CommandReceipt"
+          },
+          "minItems": 0,
+          "maxItems": 5
         }
       },
       "required": [
@@ -1268,7 +1425,8 @@
         "changes",
         "verification",
         "outcome",
-        "proposed_operations"
+        "proposed_operations",
+        "command_receipts"
       ]
     },
     "ReceiptRequest": {

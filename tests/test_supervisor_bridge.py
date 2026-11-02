@@ -295,6 +295,17 @@ def make_receipt():
         "verification": "verified",
         "outcome": "useful_evidence",
         "proposed_operations": [{"kind": "plan_priorities", "plan_id": 1, "text": "Review the failed check."}],
+        "command_receipts": [{
+            "command": "plan priorities",
+            "arguments": {"plan_id": 1, "text": "Review the failed check."},
+            "area": "Plans and tasks",
+            "tier": "tier 1",
+            "status": "applied",
+            "reason": None,
+            "rows_changed": [],
+            "readback_verification": "verified",
+            "settled_cost": {"status": "settled", "usd": "0.000001", "scope": "run"},
+        }],
     }
 
 

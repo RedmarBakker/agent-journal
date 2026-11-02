@@ -486,7 +486,8 @@
           "check_id": 3,
           "interval_minutes": 5
         }
-      ]
+      ],
+      "command_receipts": []
     },
     "ReceiptRequest": {
       "protocol_version": 1,

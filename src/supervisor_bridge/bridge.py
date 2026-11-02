@@ -265,6 +265,7 @@ class SupervisorBridge:
             "protocol_version", "action_id", "episode_id", "run_id", "grant_id", "grant_version", "scope", "fence",
             "intent_sha256", "actor_kind", "actor_id", "status", "reason", "recorded_at_ms", "observation_ids",
             "rationale", "affected_refs", "changes", "verification", "outcome", "proposed_operations",
+            "command_receipts",
         }
         if not isinstance(receipt, dict) or set(receipt) != expected:
             raise ContractError("receipt has an unsupported shape")
@@ -326,6 +327,7 @@ class SupervisorBridge:
             raise ContractError("receipt operations are outside the contract bounds")
         for operation in receipt["proposed_operations"]:
             validate_operation(operation)
+        validate_command_receipts(receipt["command_receipts"], receipt["proposed_operations"], receipt["status"])
         if receipt["action_id"] != run.pending_action_id or receipt["episode_id"] != run.episode_id:
             raise ContractError("receipt action differs from the admitted run")
         if receipt["run_id"] != run.run_id or receipt["grant_id"] != run.grant_id:
@@ -343,4 +345,59 @@ def validate_receipt_ref(value: object) -> None:
     if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks", "review_rounds"}:
         raise ContractError("receipt row reference table is unsupported")
     positive_integer(reference["id"], "receipt row id")
+
+
+def validate_command_receipts(value: object, operations: list[dict], action_status: str) -> None:
+    if not isinstance(value, list) or len(value) > 5:
+        raise ContractError("receipt command records are outside the contract bounds")
+    if action_status == "proposed":
+        if value:
+            raise ContractError("proposed actions cannot have executed command records")
+        return
+    if len(value) != len(operations):
+        raise ContractError("receipt command records do not match its operations")
+    fields = frozenset({
+        "command", "arguments", "area", "tier", "status", "reason", "rows_changed",
+        "readback_verification", "settled_cost",
+    })
+    for command, operation in zip(value, operations):
+        record = strict_object(command, fields, fields, "receipt command")
+        bounded_text(record["command"], "receipt command name", 1, 128)
+        bounded_text(record["area"], "receipt command area", 1, 128)
+        bounded_text(record["tier"], "receipt command tier", 1, 32)
+        if record["arguments"] != {key: item for key, item in operation.items() if key != "kind"}:
+            raise ContractError("receipt command arguments differ from its operation")
+        if record["status"] != action_status:
+            raise ContractError("receipt command status differs from its action")
+        if record["reason"] is not None:
+            bounded_text(record["reason"], "receipt command reason", 0, 256)
+        if record["readback_verification"] != ("verified" if action_status == "applied" else "not_applied"):
+            raise ContractError("receipt command read-back status is unsupported")
+        if not isinstance(record["rows_changed"], list) or len(record["rows_changed"]) > 15:
+            raise ContractError("receipt changed rows are outside the contract bounds")
+        for row_change in record["rows_changed"]:
+            row = strict_object(row_change, frozenset({"event", "ref", "before", "after"}),
+                                frozenset({"event", "ref", "before", "after"}), "receipt row change")
+            if not isinstance(row["event"], str) or row["event"] not in {"created", "updated", "deleted"}:
+                raise ContractError("receipt row event is unsupported")
+            validate_command_row_ref(row["ref"])
+            if row["before"] is not None and not isinstance(row["before"], dict):
+                raise ContractError("receipt row before values are unsupported")
+            if row["after"] is not None and not isinstance(row["after"], dict):
+                raise ContractError("receipt row after values are unsupported")
+        cost = strict_object(record["settled_cost"], frozenset({"status", "usd", "scope"}),
+                             frozenset({"status", "usd", "scope"}), "receipt settled cost")
+        if (not isinstance(cost["status"], str) or cost["status"] not in {"settled", "unknown"}
+                or cost["scope"] != "run"
+                or cost["usd"] is not None and not isinstance(cost["usd"], str)
+                or cost["status"] == "settled" and not cost["usd"]
+                or cost["status"] == "unknown" and cost["usd"] is not None):
+            raise ContractError("receipt settled cost is unsupported")
+
+
+def validate_command_row_ref(value: object) -> None:
+    reference = strict_object(value, frozenset({"table", "id"}), frozenset({"table", "id"}), "receipt changed row reference")
+    if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks", "links"}:
+        raise ContractError("receipt changed row table is unsupported")
+    positive_integer(reference["id"], "receipt changed row id")
 
