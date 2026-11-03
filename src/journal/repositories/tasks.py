@@ -375,6 +375,9 @@ class Tasks(ScopedRepository[Task]):
             return
         counterpart = self.holder_task(holder)
         if counterpart is not None and counterpart.id != started.id:
+            self.clear_unassigned_delegation(counterpart.id, actor)
+            counterpart = self.holder_task(holder)
+        if counterpart is not None and counterpart.id != started.id:
             raise Rejection(f"task {counterpart.id} is in hand: finish or pause it before task {started.id} is started")
         self.handover(started, holder, actor)
 
@@ -464,6 +467,8 @@ class Tasks(ScopedRepository[Task]):
             holder = self.holder(task)
             self.drop_holder(task, holder, actor)
             blocked = self.addressed_event(task.blocked(reason, time), holder, TaskClosed)
+            if holder is None or holder.type != WORKERS:
+                blocked = blocked.with_(delegated=False)
             return self.save(blocked, actor)
 
     def is_free(self, task: Task) -> bool:

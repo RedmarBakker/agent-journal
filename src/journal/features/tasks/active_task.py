@@ -61,7 +61,7 @@ class ActiveTask:
         counterpart = self.tasks.holder_task(holder) if holder is not None and holder.type != Worker.table() else None
         if counterpart is None or counterpart.id == task.id or not counterpart.is_started():
             return None
-        blocked = self.tasks.save(counterpart.blocked("", self.time_source.moment()), caller.actor)
+        blocked = self.tasks.save(counterpart.blocked("", self.time_source.moment()).with_(delegated=False), caller.actor)
         self.waits.linked(blocked, [f"task:{task.id}"], "", 0, caller.actor)
         return blocked
 
