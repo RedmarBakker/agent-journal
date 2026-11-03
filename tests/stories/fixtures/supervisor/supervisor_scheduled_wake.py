@@ -1,4 +1,5 @@
 from journal.engine.clock import Clock
+from journal.features.tasks.states.ready import Ready
 from journal.repositories.environments import Environments
 from journal.support.time_source import TimeSource
 from journal.supervisor_authority import SupervisorAuthority
@@ -26,26 +27,35 @@ class SupervisorScheduledWake(SupervisorGrantFixture):
         fixture = seeded(story.app, owner_id=1)
         authority = story.app.container.get(SupervisorAuthority)
         request = enrollment(fixture, "shadow")
-        request["event_wakeups"] = list(self.event_wakeups)
         request["limits"]["max_input_tokens_per_turn"] = self.max_input_tokens_per_turn
         request["limits"]["max_output_tokens_per_turn"] = self.max_output_tokens_per_turn
         request["limits"]["max_cost_microusd_per_day"] = self.daily_cost_limit_microusd
         request["valid_until_ms"] = int((story.app.container.get(TimeSource).seconds() + self.valid_for_minutes * 60) * 1000)
-        grant, token = authority.enroll(fixture["owner"], request)
-        fixture["credentials"].append(authority._credential_name(grant["grant_id"], grant["grant_version"]))
+        grant, token = authority.enroll(fixture.owner, request)
+        if self.event_wakeups != ("failed_check",):
+            current = authority.owner_control(fixture.owner, fixture.owner_environment.row_id)
+            authority.change(fixture.owner, {
+                "protocol_version": 1,
+                "grant_id": grant["grant_id"],
+                "expected_grant_version": grant["grant_version"],
+                "change": {"kind": "configure", "grant": {
+                    **current["grant"], "event_wakeups": list(self.event_wakeups),
+                }},
+            })
+        fixture.credentials.append(authority._credential_name(grant["grant_id"], grant["grant_version"]))
         self.supervisor_credential = token
         self.supervisor_owner_environment = story.app.container.get(Environments).find(
-            fixture["owner_environment"].row_id,
+            fixture.owner_environment.row_id,
         ).name
-        self.task_id = fixture["task"].row_id
+        self.task_id = fixture.task.row_id
         story.plans.first = grant["plan_id"]
         story.grants.first = grant["grant_id"]
-        story.closers.append(lambda: authority.secrets_store.drop(fixture["credentials"]))
+        story.closers.append(lambda: authority.secrets_store.drop(fixture.credentials))
         opened = story.user_opens_in(self.supervisor_owner_environment, "/journal/plans")
         opened.expect_viewer_passed()
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject)
+        story.expect_stack(story.agents.main, Ready)
 
 
 class SupervisorScheduledWakeExpiresSoon(SupervisorScheduledWake):

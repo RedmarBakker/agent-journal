@@ -104,7 +104,7 @@ class SupervisorObservations:
             if request["source"] == "timer":
                 return self._scheduled_admission(principal, grant, request)
             if "event_kind" in request:
-                if request["event_kind"] not in grant["event_wakeups"]:
+                if request["event_kind"] not in self.authority.observation_permissions(principal).event_wakeups:
                     return self._skipped("event_disabled")
                 result = self._admit(principal, grant, request)
                 self.wake_schedule.record_event(principal, grant, request["event_kind"], request["event_id"], result)

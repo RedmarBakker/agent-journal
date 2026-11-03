@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+
+from journal.engine.clock import Clock
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
@@ -8,9 +11,10 @@ from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.supervisor_authority import SupervisorAuthority
-from tests.agent_hooks import story_seconds
 from tests.stories.fixtures.main.supervisor_cost_data import add_quiet, add_run
 from tests.stories.fixtures.supervisor.version_one_grant import VersionOneGrant
+
+COSTS_NOW = datetime(2025, 1, 8, 2, 30, tzinfo=timezone.utc).timestamp()
 
 
 class SupervisorCosts(VersionOneGrant):
@@ -18,7 +22,14 @@ class SupervisorCosts(VersionOneGrant):
 
     parent = VersionOneGrant
 
+    def restore_on(self, story) -> None:
+        super().restore_on(story)
+        story.app.container.get(TimeSource).pin(COSTS_NOW)
+        story.app.container.get(Clock).held_at = COSTS_NOW
+
     def steps(self, story) -> None:
+        source = story.app.container.get(TimeSource)
+        source.pin(COSTS_NOW)
         authority = story.app.container.get(SupervisorAuthority)
         principal = authority.authenticate(self.supervisor_credential)
         plan = story.app.container.get(Plans).global_matching(id=story.plans.first)[0]
@@ -29,11 +40,10 @@ class SupervisorCosts(VersionOneGrant):
                      mode=PlanMode.SOLO), Actor.user(owner),
             )
         self.plans.second = second.row_id
-        now = story_seconds(story.app)
-        source = story.app.container.get(TimeSource)
+        now = COSTS_NOW
         add_run(story, principal, plan.row_id, "month", now - 14 * 86400, "0.50", ("check_interval",))
         add_run(story, principal, plan.row_id, "week", now - 6 * 86400, "0.10", ("check_interval",), True)
-        add_run(story, principal, plan.row_id, "yesterday", now - 86400, "0.30",
+        add_run(story, principal, plan.row_id, "today", now - 90 * 60, "0.30",
                 ("check_interval", "diagnostic_task"), True)
         add_run(story, principal, plan.row_id, "unknown", now - 3600, None, ("diagnostic_task",))
         add_run(story, principal, second.row_id, "other-plan", now - 2 * 86400, "0.20",

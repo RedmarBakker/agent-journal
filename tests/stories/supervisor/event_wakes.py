@@ -17,7 +17,8 @@ def event_wake(story, event_kind):
 
 
 @story(SupervisorEventWake, subject=AgentRole.SUPERVISOR)
-def test_each_enabled_event_kind_wakes_the_supervisor_with_its_kind(story):
+def test_each_enabled_event_kind_is_recorded_while_a_run_is_active(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     failed_check = event_wake(story, "failed_check")
     failed_check.expect_viewer_passed()
     failed_check.expect_viewer_part(("status",), "admitted")
@@ -35,19 +36,23 @@ def test_each_enabled_event_kind_wakes_the_supervisor_with_its_kind(story):
 
     stalled_task = event_wake(story, "stalled_task")
     stalled_task.expect_viewer_passed()
-    stalled_task.expect_viewer_part(("status",), "admitted")
+    stalled_task.expect_viewer_part(("status",), "skipped")
+    stalled_task.expect_viewer_part(("reason",), "busy")
 
     stale_worker = event_wake(story, "stale_worker")
     stale_worker.expect_viewer_passed()
-    stale_worker.expect_viewer_part(("status",), "admitted")
+    stale_worker.expect_viewer_part(("status",), "skipped")
+    stale_worker.expect_viewer_part(("reason",), "busy")
 
     message = event_wake(story, "message_to_supervisor")
     message.expect_viewer_passed()
-    message.expect_viewer_part(("status",), "admitted")
+    message.expect_viewer_part(("status",), "skipped")
+    message.expect_viewer_part(("reason",), "busy")
 
     question = event_wake(story, "question_to_supervisor")
     question.expect_viewer_passed()
-    question.expect_viewer_part(("status",), "admitted")
+    question.expect_viewer_part(("status",), "skipped")
+    question.expect_viewer_part(("reason",), "busy")
 
     history = story.user_opens_in(
         story.fixture.supervisor_owner_environment,
@@ -56,13 +61,17 @@ def test_each_enabled_event_kind_wakes_the_supervisor_with_its_kind(story):
     history.expect_viewer_passed()
     history.expect_viewer_part(("current", "wake_ups", "event"), 5)
     history.expect_viewer_part(("records", 0, "event_kind"), "question_to_supervisor")
-    history.expect_viewer_part(("records", 0, "status"), "admitted")
+    history.expect_viewer_part(("records", 0, "status"), "skipped")
+    history.expect_viewer_part(("records", 0, "reason"), "busy")
     history.expect_viewer_part(("records", 1, "event_kind"), "message_to_supervisor")
-    history.expect_viewer_part(("records", 1, "status"), "admitted")
+    history.expect_viewer_part(("records", 1, "status"), "skipped")
+    history.expect_viewer_part(("records", 1, "reason"), "busy")
     history.expect_viewer_part(("records", 2, "event_kind"), "stale_worker")
-    history.expect_viewer_part(("records", 2, "status"), "admitted")
+    history.expect_viewer_part(("records", 2, "status"), "skipped")
+    history.expect_viewer_part(("records", 2, "reason"), "busy")
     history.expect_viewer_part(("records", 3, "event_kind"), "stalled_task")
-    history.expect_viewer_part(("records", 3, "status"), "admitted")
+    history.expect_viewer_part(("records", 3, "status"), "skipped")
+    history.expect_viewer_part(("records", 3, "reason"), "busy")
     history.expect_viewer_part(("records", 4, "event_kind"), "failed_check")
     history.expect_viewer_part(("records", 4, "status"), "admitted")
     story.expect_stack(story.agents.subject)
@@ -70,6 +79,7 @@ def test_each_enabled_event_kind_wakes_the_supervisor_with_its_kind(story):
 
 @story(SupervisorEventWakeOff, subject=AgentRole.SUPERVISOR)
 def test_an_event_with_its_grant_switch_off_does_not_wake_the_supervisor(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.user_types_in(story.fixture.supervisor_owner_environment, "Tell the supervisor the service is slow.")
 
     wake = event_wake(story, "message_to_supervisor")

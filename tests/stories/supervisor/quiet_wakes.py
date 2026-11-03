@@ -19,8 +19,13 @@ def records(story):
     )
 
 
+def expect_grant_covers_plan(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
+
+
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_scheduled_wake_with_no_change_is_skipped_as_quiet(story):
+    expect_grant_covers_plan(story)
     story.time_travel(minutes=15)
     first = scheduled_wake(story)
     first.expect_viewer_passed()
@@ -41,6 +46,7 @@ def test_a_scheduled_wake_with_no_change_is_skipped_as_quiet(story):
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_task_change_keeps_the_next_scheduled_wake_from_being_quiet(story):
+    expect_grant_covers_plan(story)
     story.time_travel(minutes=15)
     first = scheduled_wake(story)
     first.expect_viewer_passed()

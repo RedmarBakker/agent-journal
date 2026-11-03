@@ -64,6 +64,7 @@ def wakeup_counts(story):
 
 @story(SupervisorDailyCost, subject=AgentRole.SUPERVISOR)
 def test_wakes_after_settled_cost_reaches_the_daily_cap_wait_for_the_next_day(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     first = admit_event(story, "daily-cost-first")
     first.expect_viewer_passed()
     first.expect_viewer_part(("status",), "admitted")
@@ -101,6 +102,7 @@ def test_wakes_after_settled_cost_reaches_the_daily_cap_wait_for_the_next_day(st
 
 @story(SupervisorDailyCostBelowCap, subject=AgentRole.SUPERVISOR)
 def test_a_settled_cost_below_the_daily_cap_leaves_room_for_another_wake(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     first = admit_event(story, "below-cap-first")
     first.expect_viewer_passed()
     first.expect_viewer_part(("status",), "admitted")
@@ -118,6 +120,7 @@ def test_a_settled_cost_below_the_daily_cap_leaves_room_for_another_wake(story):
 
 @story(SupervisorDailyCostPending, subject=AgentRole.SUPERVISOR)
 def test_a_run_with_pending_cost_is_unknown_and_never_counts_as_zero(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     first = admit_event(story, "pending-cost-first")
     first.expect_viewer_passed()
     first.expect_viewer_part(("status",), "admitted")

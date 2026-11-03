@@ -24,8 +24,13 @@ def change_interval(story, version: int, minutes: int):
     })
 
 
+def expect_grant_covers_plan(story):
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
+
+
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_scheduled_wake_waits_for_the_grant_fifteen_minute_interval(story):
+    expect_grant_covers_plan(story)
     story.time_travel(minutes=14)
     early = timer_wake(story)
     early.expect_viewer_passed()
@@ -53,6 +58,7 @@ def test_a_scheduled_wake_waits_for_the_grant_fifteen_minute_interval(story):
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_changed_thirty_minute_interval_controls_the_next_scheduled_wake(story):
+    expect_grant_covers_plan(story)
     changed = change_interval(story, 1, 30)
     changed.expect_viewer_passed()
     changed.expect_viewer_part(("grant_version",), 2)
@@ -72,6 +78,7 @@ def test_a_changed_thirty_minute_interval_controls_the_next_scheduled_wake(story
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_changed_sixty_minute_interval_controls_the_next_scheduled_wake(story):
+    expect_grant_covers_plan(story)
     changed = change_interval(story, 1, 60)
     changed.expect_viewer_passed()
     changed.expect_viewer_part(("grant_version",), 2)
@@ -91,6 +98,7 @@ def test_a_changed_sixty_minute_interval_controls_the_next_scheduled_wake(story)
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_changed_wake_interval_takes_effect_after_the_current_wake(story):
+    expect_grant_covers_plan(story)
     story.time_travel(minutes=15)
     due = timer_wake(story)
     due.expect_viewer_passed()
@@ -109,12 +117,13 @@ def test_a_changed_wake_interval_takes_effect_after_the_current_wake(story):
     story.time_travel(minutes=1)
     next_wake = timer_wake(story)
     next_wake.expect_viewer_passed()
-    next_wake.expect_viewer_part(("reason",), "empty")
+    next_wake.expect_viewer_part(("reason",), "quiet")
     story.expect_stack(story.agents.subject)
 
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_paused_supervisor_has_no_scheduled_wake(story):
+    expect_grant_covers_plan(story)
     paused = story.user_presses("/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": story.grants.first,
@@ -137,6 +146,7 @@ def test_a_paused_supervisor_has_no_scheduled_wake(story):
 
 @story(SupervisorScheduledWakeExpiresSoon, subject=AgentRole.SUPERVISOR)
 def test_an_expired_grant_has_no_scheduled_wake(story):
+    expect_grant_covers_plan(story)
     story.time_travel(minutes=11)
     wake = timer_wake(story)
     wake.expect_viewer_refused("the supervisor grant is no longer current")

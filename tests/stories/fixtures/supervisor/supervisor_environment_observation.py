@@ -1,3 +1,4 @@
+from journal.features.tasks.states.ready import Ready
 from journal.models.phase import Phase
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
@@ -57,10 +58,9 @@ class SupervisorEnvironmentObservation(SupervisorGrantFixture):
             "cursor": None,
         }
         story.plans.first = fixture["plan"].row_id
-        story.plans.second = unwatched.row_id
         story.closers.append(lambda: fixture["authority"].secrets_store.drop(fixture["credentials"]))
         opened = story.user_opens_in(self.supervisor_environment, "/journal/plans")
         opened.expect_viewer_passed()
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject)
+        story.expect_stack(story.agents.main, Ready)
