@@ -1,0 +1,117 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60,
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60,
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60,
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60,
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60,
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh && exec sh /Users/redmarbakker/Code/transportklok/agent-journal/.journal/src/journal/hooks/hook.sh codex /Users/redmarbakker/Code/transportklok/agent-journal; exit 0",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

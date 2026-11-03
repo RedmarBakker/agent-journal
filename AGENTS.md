@@ -14,7 +14,7 @@ file's own safety and deploy rules still stand. The user's own instructions take
 These rules ship with the journal and cannot be switched off.
 
 **L1 - Every subagent dispatch names its model and chooses the least expensive model that reliably fits the work.**
-Inheriting the dispatching agent's model is not a model choice.
+Inheriting the orchestrator's model is not a model choice.
 
 **L2 - Every subagent is bound to a concrete job; never dispatch a generic or default agent.**
 Give the dispatch a description and a bounded prompt. If no suitable specialization exists, keep the work yourself.
