@@ -84,10 +84,13 @@ class TypedLines:
     def is_waiting(self, environment_id: int) -> bool:
         return any(t.environment_id == environment_id for t in self._waiting)
 
-    def queue(self, line: QueuedLine) -> None:
+    def queue(self, line: QueuedLine) -> bool:
         if any((h.environment_id, h.agent_id, h.line) == (line.environment_id, line.agent_id, line.line) for h in self._held):
-            return
+            return False
+        if any((typed.environment_id, typed.agent_id, typed.line) == (line.environment_id, line.agent_id, line.line) for typed in self._waiting):
+            return False
         self._held.append(line)
+        return True
 
     def first_instruction(self, environment_id: int) -> QueuedLine | None:
         first = next((h for h in self._held if h.environment_id == environment_id and not h.is_remark), None)
@@ -101,10 +104,22 @@ class TypedLines:
         self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(moment)] + [TypedLine(environment_id, line, moment, agent_id=agent_id)]
 
     def unsent(self, line: QueuedLine) -> None:
-        self._waiting = [typed for typed in self._waiting if (typed.environment_id, typed.agent_id, typed.line) != (line.environment_id, line.agent_id, line.line)]
+        waiting = [typed for typed in self._waiting if (typed.environment_id, typed.agent_id, typed.line) == (line.environment_id, line.agent_id, line.line)]
+        if not waiting:
+            return
+        self._waiting = [typed for typed in self._waiting if typed not in waiting]
         self._recent = [typed for typed in self._recent if (typed.environment_id, typed.agent_id, typed.line) != (line.environment_id, line.agent_id, line.line)]
         self.rest(line.environment_id)
-        self._held.insert(0, line)
+        if not any((held.environment_id, held.agent_id, held.line) == (line.environment_id, line.agent_id, line.line) for held in self._held):
+            self._held.insert(0, line)
+
+    def unanswered(self, line: QueuedLine, time: float) -> None:
+        waiting = next((typed for typed in self._waiting if (typed.environment_id, typed.agent_id, typed.line) == (line.environment_id, line.agent_id, line.line)), None)
+        if waiting is None:
+            return
+        updated = TypedLine(waiting.environment_id, waiting.line, time, waiting.tries, waiting.agent_id)
+        self._waiting[self._waiting.index(waiting)] = updated
+        self._recent = [typed for typed in self._recent if not Timeout.seconds(RECENT_SECONDS).started(typed.time).is_elapsed(time)] + [updated]
 
     def contains(self, environment_id: int, prompt: str) -> bool:
         return any(t.matches_prompt(environment_id, prompt) for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(self.time_source.seconds()))

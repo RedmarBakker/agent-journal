@@ -46,8 +46,9 @@ class SupervisorLink:
         if self.typed.is_disabled(environment_id):
             return
         flagged = f"{JOURNAL_PREFIX} {' '.join(line.split())}"
-        self.typed.queue(QueuedLine(environment_id, flagged, following, self.time_source.seconds(), agent_id=self.target(environment_id, agent_id)))
-        self.release(environment_id)
+        queued = QueuedLine(environment_id, flagged, following, self.time_source.seconds(), agent_id=self.target(environment_id, agent_id))
+        if self.typed.queue(queued):
+            self.release(environment_id)
 
     def target(self, environment_id: int, agent_id: int = 0) -> int:
         if agent_id:
@@ -66,12 +67,13 @@ class SupervisorLink:
         self.deliver_line(first)
 
     def deliver_line(self, first: QueuedLine) -> None:
-        sent = False
         try:
-            sent = self._send(first.environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds, "agent_id": first.agent_id}).success
-        finally:
-            if not sent:
-                self.typed.unsent(first)
+            reply = self._send(first.environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds, "agent_id": first.agent_id})
+        except OSError:
+            self.typed.unanswered(first, self.time_source.seconds())
+            return
+        if not reply.success:
+            self.typed.unsent(first)
 
     def is_busy(self, environment_id: int) -> bool:
         return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.typed.is_working(environment_id)

@@ -66,3 +66,17 @@ class DeveloperSteps:
     def agent_supervisor_is_ready(self, agent: StoryAgent) -> StepResult:
         self.protocol_supervisor.accept()
         return self.observed(f"the {agent.role} supervisor is ready again", None, None)
+
+    def agent_supervisor_loses_the_reply_after_delivering_a_line(self, agent: StoryAgent) -> StepResult:
+        delivered = False
+
+        def send(supervisor, environment_id: int, verb: str, fields: dict):
+            nonlocal delivered
+            reply = self.supervisor_send(supervisor, environment_id, verb, fields)
+            if verb == "type" and not delivered:
+                delivered = True
+                raise ConnectionResetError("the acknowledgement was lost after the terminal received the line")
+            return reply
+
+        self.monkeypatch.setattr(SupervisorLink, "_send", send)
+        return self.observed(f"the {agent.role} supervisor loses the reply after receiving a line", None, None)
