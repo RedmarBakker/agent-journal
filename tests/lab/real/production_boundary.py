@@ -55,7 +55,7 @@ class ProductionBoundary:
         self.profile = paths["runtime"] / "run-boundary.sb"
         private_reads = tuple(path for key, path in paths.items() if key.startswith("provider_config_"))
         try:
-            self.profile.write_text(self.policy(self.root, (*self.read_paths, *private_reads)), encoding="utf-8")
+            self.profile.write_text(self.policy(self.root, (*self.read_paths, *private_reads, *developer_tool_paths())), encoding="utf-8")
             self.profile.chmod(0o600)
         except OSError:
             self.close()
@@ -121,7 +121,7 @@ class ProductionBoundary:
             "(allow mach-lookup)",
             *(f'(allow file-read* (subpath {json.dumps(str(path))}))' for path in (
                 Path("/System"), Path("/Library"), Path("/usr"), Path("/bin"), Path("/sbin"),
-                Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"), *developer_tool_paths(),
+                Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"),
             )),
             *(f'(allow file-read-metadata (literal {json.dumps(str(path))}))' for path in metadata_paths),
             *(f'(allow file-read* (literal {json.dumps(str(path.resolve()))}))' for path in read_paths),
@@ -133,7 +133,16 @@ class ProductionBoundary:
             f"(allow file-write* (subpath {json.dumps(str(root))}))",
             f'(allow file-read* (subpath {json.dumps(str(self.tmux_tmpdir))}))',
             f'(allow file-write* (subpath {json.dumps(str(self.tmux_tmpdir))}))',
+            '(allow pseudo-tty)',
+            '(allow file-read* file-write* file-ioctl (literal "/dev/ptmx"))',
+            '(allow file-read* file-write* (require-all (regex #"^/dev/ttys[0-9]+") (extension "com.apple.sandbox.pty")))',
+            '(allow file-ioctl (regex #"^/dev/ttys[0-9]+"))',
             '(allow file-write* (literal "/dev/null"))',
+            '(allow system-socket (socket-domain AF_UNIX))',
+            *(f'(allow network-bind (local unix-socket (subpath {json.dumps(str(path))})))'
+              for path in (root, self.tmux_tmpdir)),
+            *(f'(allow network-outbound (remote unix-socket (subpath {json.dumps(str(path))})))'
+              for path in (root, self.tmux_tmpdir)),
             allowed_ports,
             bound_ports,
             "",

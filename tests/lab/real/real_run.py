@@ -68,7 +68,9 @@ class RealRun:
             plan_id = self.driver.start_plan(scenario, paths, caps)
             terminal_reason = self.driver.wait_for_end_or_cap(run_id, plan_id, caps)
         except Exception as error:
-            terminal_reason = "setup_failed" if plan_id is None else "faulted"
+            terminal_reason = "aborted" if isinstance(error, InterruptedError) else (
+                "setup_failed" if plan_id is None else "faulted"
+            )
             fault = str(error)
         isolation, isolation_fault = self.observe_isolation(boundary, run_id, paths, caps)
         if isolation_fault:
@@ -148,6 +150,7 @@ class RealRun:
             snapshot, identity, scenario = self.prepare_journal(spec, paths, run_id, launch_id, challenge, None)
             port = identity["port"]
             plan_id = self.driver.prepare_plan(scenario, paths)
+            agent_launch_preflight = self.driver.preflight_plan_agent_launch(plan_id, paths)
             tmux_preflight = self.driver.preflight_tmux(paths)
             agent_cli_probe = self.driver.probe_agent_cli(paths)
             self.driver.start_openrig(paths)
@@ -160,6 +163,7 @@ class RealRun:
                 "journal_pid": identity["pid"],
                 "journal_port": port,
                 "plan_id": plan_id,
+                "agent_launch_preflight": agent_launch_preflight,
                 "tmux_preflight": tmux_preflight,
                 "agent_cli_probe": agent_cli_probe,
                 "agent_started": False,

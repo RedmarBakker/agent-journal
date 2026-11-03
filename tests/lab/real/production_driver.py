@@ -8,6 +8,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from typing import Mapping
 from urllib.error import HTTPError
@@ -24,6 +25,7 @@ from tests.lab.real.run_real_batch import RunRealBatch
 
 JOURNAL_STARTUP_SECONDS = 180
 OPENRIG_STARTUP_SECONDS = 60
+MAIN_SUPERVISOR_SOCKET = "journal-main.sock"
 
 
 class ProductionDriver:
@@ -58,6 +60,7 @@ class ProductionDriver:
         )
         self.processes: list[subprocess.Popen] = []
         self.journal_process: subprocess.Popen | None = None
+        self.main_session_process: subprocess.Popen | None = None
         self.event_server: CapEventServer | None = None
         self.proxy: ProviderProxy | None = None
         self.paths: Mapping[str, Path] = {}
@@ -68,6 +71,10 @@ class ProductionDriver:
         self.rig_stop_request: Path | None = None
         self.rig_stop_confirmation: Path | None = None
         self.token = secrets.token_urlsafe(32)
+        self.sigterm_handler = None
+        self.previous_sigterm_handler = None
+        self.plan_started = False
+        self.prepared_plan: dict[str, object] = {}
         self.stopped = False
         self.watchdog.register(self)
 
@@ -83,6 +90,8 @@ class ProductionDriver:
     def start_journal(self, paths: Mapping[str, Path], _shim: Path, run_id: str, launch_id: str,
                       challenge: str, port: int, caps) -> dict[str, object]:
         self.caps = caps
+        self.paths = paths
+        self.install_sigterm_handler()
         if caps is not None:
             self.event_server = CapEventServer(caps, self.token, self.cap_port)
             if self.event_server.start() != self.cap_port:
@@ -91,6 +100,7 @@ class ProductionDriver:
             self.proxy.start()
         self.install_share_port(paths)
         self.env = self.child_environment(paths, port)
+        self.prepare_run_plan(paths)
         stdout = (paths["runtime"] / "journal.stdout.log").open("ab")
         stderr = (paths["runtime"] / "journal.stderr.log").open("ab")
         command = self.boundary.wrap([sys.executable, str(paths["project"] / "src" / "journal.py"), "serve"])
@@ -131,14 +141,7 @@ class ProductionDriver:
         )
         openrig_home = paths["runtime"] / "openrig"
         openrig_home.mkdir(mode=0o700, exist_ok=True)
-        hook = paths["runtime"] / "cap-hook.py"
-        source = Path(__file__).with_name("cap_hook.py")
-        hook.write_text(f"#!{sys.executable}\n" + source.read_text(encoding="utf-8"), encoding="utf-8")
-        hook.chmod(0o700)
         env.update({
-            "JOURNAL_LAB_CAP_HOOK": str(hook),
-            "JOURNAL_LAB_CAP_URL": f"http://127.0.0.1:{self.cap_port}/event",
-            "JOURNAL_LAB_CAP_TOKEN": self.token,
             "HOME": str(openrig_home),
             "OPENRIG_HOME": str(openrig_home),
             "OPENRIG_DB": str(openrig_home / "openrig.db"),
@@ -157,10 +160,15 @@ class ProductionDriver:
     def probe_agent_cli(self, paths: Mapping[str, Path]) -> dict[str, str]:
         provider = str(self.spec["provider"])
         self.install_agent_interpreters(paths)
-        result = self.command([str(paths["bin"] / provider), "--version"], paths)
-        if result.returncode:
-            raise ValueError(result.stderr.strip() or f"{provider} CLI version probe failed")
-        version = result.stdout.strip() or result.stderr.strip()
+        command = self.main_session_command(paths, paths["tmp"] / MAIN_SUPERVISOR_SOCKET, ("--version",))
+        process = subprocess.Popen(self.boundary.wrap(command), cwd=paths["project"], env=self.env,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   text=True, start_new_session=True)
+        self.processes.append(process)
+        stdout, stderr = process.communicate(timeout=60)
+        if process.returncode:
+            raise ValueError(stderr.strip() or f"{provider} CLI version probe failed")
+        version = stdout.strip() or stderr.strip()
         if not version:
             raise ValueError(f"{provider} CLI version probe returned no version")
         return {"provider": provider, "version": version.splitlines()[0]}
@@ -193,9 +201,14 @@ class ProductionDriver:
         target.chmod(0o700)
         return target
 
-    def prepare_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> str:
-        setup = self.setup_scenario(scenario, paths)
-        return str(setup["plan_id"])
+    def prepare_run_plan(self, paths: Mapping[str, Path]) -> None:
+        scenario = self.load_scenario(str(self.spec["scenario"]), paths)
+        self.prepared_plan = self.setup_scenario(scenario, paths)
+
+    def prepare_plan(self, _scenario: Mapping[str, object], _paths: Mapping[str, Path]) -> str:
+        if not self.prepared_plan:
+            raise ValueError("the approved scenario must be loaded before the isolated journal boots")
+        return str(self.prepared_plan["plan_id"])
 
     def preflight_tmux(self, paths: Mapping[str, Path]) -> str:
         temporary_directory = Path(self.env["TMUX_TMPDIR"]).resolve()
@@ -214,16 +227,106 @@ class ProductionDriver:
             return "no-server"
         raise ValueError(detail or "private tmux list-sessions preflight failed")
 
-    def start_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path], _caps) -> str:
+    def start_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path], caps) -> str:
         plan_id = self.prepare_plan(scenario, paths)
+        launch = self.preflight_plan_agent_launch(plan_id, paths)
         self.install_agent_interpreters(paths)
         self.preflight_tmux(paths)
         self.start_openrig(paths)
-        journal = [sys.executable, str(paths["project"] / "src" / "journal.py")]
-        started = self.command([*journal, "plan", "start", plan_id], paths)
-        if started.returncode:
-            raise ValueError(started.stderr.strip() or "journal refused to start the approved plan")
+        self.plan_started = True
+        self.start_main_session(paths, caps, Path(str(launch["supervisor_socket"])))
+        self.wait_for_agent_session(caps, 2)
         return plan_id
+
+    def preflight_plan_agent_launch(self, plan_id: str, paths: Mapping[str, Path]) -> dict[str, object]:
+        prepared = self.prepared_plan
+        if (str(prepared.get("plan_id", "")) != plan_id
+                or prepared.get("plan_agents") is not True
+                or prepared.get("plan_mode") != "organization"
+                or prepared.get("plan_state") != "approved"):
+            raise ValueError("the isolated journal has no approved organization plan agent to start")
+        if self.spec.get("provider") not in {"claude", "codex"}:
+            raise ValueError("an approved subscription CLI is required to start the main journal session")
+        if not paths["bin"].joinpath(str(self.spec["provider"])).is_file():
+            raise ValueError("the signed-in provider CLI is missing from the isolated PATH")
+        settings = self.manifest.data().get("design", {}).get("settings", {})
+        if not isinstance(settings, Mapping) or settings.get("plans.plan_agents") is not True:
+            raise ValueError("the isolated journal has no approved organization plan agent to start")
+        helper = Path(__file__).with_name("main_session_launcher.py")
+        if not helper.is_file():
+            raise ValueError("the pinned main session launcher is unavailable")
+        if paths["tmp"] != self.boundary.tmux_tmpdir or not self.boundary.tmux_directory_is_valid():
+            raise ValueError("the main session supervisor socket must use the run's private temporary directory")
+        supervisor_socket = paths["tmp"] / MAIN_SUPERVISOR_SOCKET
+        if len(os.fsencode(str(supervisor_socket))) >= TMUX_SOCKET_PATH_LIMIT:
+            raise ValueError("the private main session supervisor socket exceeds the Unix socket path limit")
+        return {"main_session_launcher": str(helper), "supervisor_socket": str(supervisor_socket),
+                "plan_id": plan_id,
+                "plan_agents": True, "plan_mode": "organization", "plan_state": "approved"}
+
+    def start_main_session(self, paths: Mapping[str, Path], caps, supervisor_socket: Path) -> None:
+        if caps is None or self.event_server is None:
+            raise ValueError("run caps must be listening before the main journal session starts")
+        command = self.main_session_command(paths, supervisor_socket, ())
+        stdout = (paths["runtime"] / "main-session.stdout.log").open("ab")
+        stderr = (paths["runtime"] / "main-session.stderr.log").open("ab")
+        with stdout, stderr:
+            process = subprocess.Popen(
+                self.boundary.wrap(command),
+                cwd=paths["project"], env=self.env, stdin=subprocess.DEVNULL,
+                stdout=stdout, stderr=stderr, start_new_session=True,
+            )
+        self.main_session_process = process
+        self.processes.append(process)
+        self.wait_for_agent_session(caps, 1, "main journal session")
+
+    def main_session_command(self, paths: Mapping[str, Path], supervisor_socket: Path,
+                             arguments: tuple[str, ...]) -> list[str]:
+        staged = paths["runtime"] / "main-session-launcher.py"
+        shutil.copyfile(Path(__file__).with_name("main_session_launcher.py"), staged)
+        staged.chmod(0o700)
+        return [sys.executable, str(staged), str(paths["project"]), str(self.spec["provider"]),
+                str(supervisor_socket), *arguments]
+
+    def wait_for_agent_session(self, caps, expected: int = 1, session_name: str = "Plan agent") -> None:
+        if caps is None:
+            raise ValueError(f"a run cap ledger is required before starting the {session_name}")
+        deadline = time.monotonic() + OPENRIG_STARTUP_SECONDS
+        while time.monotonic() < deadline:
+            data = caps.read()
+            run = data.get("runs", {}).get(self.run_id, {})
+            if len(run.get("sessions", {})) >= expected:
+                return
+            if data.get("cap_reached"):
+                raise ValueError(f"a run cap stopped the {session_name} before its session started")
+            if self.journal_process and self.journal_process.poll() is not None:
+                raise ValueError(f"isolated journal server stopped before the {session_name} started")
+            if self.main_session_process and self.main_session_process.poll() is not None:
+                raise ValueError(f"main journal session stopped before the {session_name} started")
+            time.sleep(0.1)
+        raise ValueError(f"the approved plan started without a capped {session_name}")
+
+    def journal_command(self, arguments: list[str], paths: Mapping[str, Path]) -> subprocess.CompletedProcess[str]:
+        return self.command([str(paths["bin"] / "journal"), *map(str, arguments)], paths)
+
+    def install_sigterm_handler(self) -> None:
+        if self.sigterm_handler is None:
+            self.previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
+            self.sigterm_handler = self.handle_sigterm
+            signal.signal(signal.SIGTERM, self.sigterm_handler)
+
+    def handle_sigterm(self, _signum, _frame) -> None:
+        stopped = self.stop_owned("real batch received SIGTERM")
+        reason = "real batch received SIGTERM" if stopped else "real batch received SIGTERM; owned process stop was not confirmed"
+        raise InterruptedError(reason)
+
+    def restore_sigterm_handler(self) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            return
+        if self.sigterm_handler is not None and signal.getsignal(signal.SIGTERM) == self.sigterm_handler:
+            signal.signal(signal.SIGTERM, self.previous_sigterm_handler)
+        self.sigterm_handler = None
+        self.previous_sigterm_handler = None
 
     def start_openrig(self, paths: Mapping[str, Path]) -> None:
         rig = self.executable("rig")
@@ -269,8 +372,7 @@ class ProductionDriver:
                 return "capped"
             if self.journal_process and self.journal_process.poll() is not None:
                 raise ValueError("isolated journal server stopped while the plan was running")
-            result = self.command([sys.executable, str(self.paths["project"] / "src" / "journal.py"),
-                                   "plan", "show", plan_id], self.paths)
+            result = self.journal_command(["plan", "show", plan_id], self.paths)
             if result.returncode:
                 raise ValueError(result.stderr.strip() or "journal could not read the active plan")
             line = result.stdout.splitlines()[0] if result.stdout.splitlines() else ""
@@ -299,6 +401,7 @@ class ProductionDriver:
 
     def stop_owned(self, _reason: str = "run finished") -> bool:
         if self.stopped:
+            self.restore_sigterm_handler()
             return True
         confirmed = True
         if self.event_server:
@@ -307,6 +410,8 @@ class ProductionDriver:
         if self.proxy:
             self.proxy.close()
             self.proxy = None
+        if self.rig_started or self.plan_started:
+            confirmed = self.stop_tmux() and confirmed
         if self.rig_started and self.rig_process and self.rig_stop_request and self.rig_stop_confirmation:
             if self.rig_process.poll() is None:
                 self.rig_stop_request.write_text("stop\n", encoding="utf-8")
@@ -336,7 +441,18 @@ class ProductionDriver:
         if confirmed:
             confirmed = self.boundary.close()
         self.stopped = confirmed
+        self.restore_sigterm_handler()
         return confirmed
+
+    def stop_tmux(self) -> bool:
+        if not self.paths or not self.env:
+            return False
+        result = self.command([str(self.paths["bin"] / "tmux"), "-S",
+                               str(self.boundary.tmux_socket_path), "kill-server"], self.paths)
+        if result.returncode == 0:
+            return True
+        detail = (result.stderr or result.stdout).lower()
+        return any(reason in detail for reason in ("no server running", "no server found", "no such file or directory"))
 
     def command(self, command: list[str], paths: Mapping[str, Path]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(self.boundary.wrap(command), cwd=paths["project"], env=self.env,
@@ -355,10 +471,14 @@ from journal.models.plan_mode import PlanMode
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.organization.support.organization import Organization
+from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.features.skills.support.skill_files import SkillFiles
+from journal.repositories.plans import Plans
+from journal.repositories.setting_rows import SettingRows
 from tests.lab.business_type import BusinessType
 from tests.lab.lab_scenario import LabScenario
 from tests.lab.scenario_loader import ScenarioLoader
-from tests.user_settings import user_set
+from tests.user_settings import USER_CALLER, user_set
 app = App(Config.rooted(project))
 business_type = harness / "tests" / "lab" / "business_types" / f"{scenario_path.parent.name}.toml"
 business = BusinessType.read(business_type)
@@ -366,6 +486,11 @@ user_set(app, OrganizationOptions.FOLDER.key, str(organization))
 user_set(app, PlansOptions.PLAN_AGENTS.key, True)
 for key, value in settings.items():
     user_set(app, key, value)
+hooks = app.run_without_server(["setup", "hooks"], USER_CALLER)
+if hooks.code:
+    raise ValueError(hooks.error or hooks.text)
+app.container.get(SkillFiles).write_all()
+app.container.get(ProfileFiles).write_all()
 scenario = LabScenario.read(scenario_path)
 domain_map = business.organization_domain_map
 contracts = app.container.get(Organization).contracts()
@@ -377,7 +502,15 @@ for scenario_domain in scenario_domains:
     if contracts.domain(organization_domain) is None:
         raise ValueError(f"scenario domain {scenario_domain!r} maps to {organization_domain!r}, absent from pinned organization")
 plan = ScenarioLoader(app).load(scenario, PlanMode.ORGANIZATION, domain_map)
-print(plan["plan_id"])
+row = next(iter(app.container.get(Plans).global_matching(id=plan["plan_id"])), None)
+if row is None:
+    raise ValueError("pinned journal did not keep the approved plan")
+print(json.dumps({
+    "plan_id": plan["plan_id"],
+    "plan_agents": app.container.get(SettingRows).option(PlansOptions.PLAN_AGENTS),
+    "plan_mode": row.mode.value,
+    "plan_state": row.state.value,
+}))
 '''
         design = self.manifest.data().get("design", {})
         settings = design.get("settings", {}) if isinstance(design, Mapping) else {}
@@ -391,10 +524,13 @@ print(plan["plan_id"])
                                 text=True, timeout=60, check=False)
         if result.returncode:
             raise ValueError(result.stderr.strip() or "pinned journal could not load the approved scenario")
-        plan_id = result.stdout.strip().splitlines()[-1]
-        if not plan_id.isdecimal():
+        try:
+            prepared = json.loads(result.stdout.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError) as error:
+            raise ValueError("pinned journal did not return an approved plan") from error
+        if not isinstance(prepared, dict) or not str(prepared.get("plan_id", "")).isdecimal():
             raise ValueError("pinned journal did not return an approved plan id")
-        return {"plan_id": int(plan_id)}
+        return prepared
 
     def stage_lab_harness(self, paths: Mapping[str, Path]) -> Path:
         harness = paths["runtime"] / "driver-harness"
@@ -407,8 +543,26 @@ print(plan["plan_id"])
         return harness
 
     def install_cap_hook(self, project: Path, paths: Mapping[str, Path]) -> None:
+        hook = paths["runtime"] / "cap-hook.py"
+        source = Path(__file__).with_name("cap_hook.py")
+        hook.write_text(f"#!{sys.executable}\n" + source.read_text(encoding="utf-8"), encoding="utf-8")
+        hook.chmod(0o700)
+        forwarder = paths["runtime"] / "cap-hook"
+        forwarder.write_text(
+            "#!/bin/sh\n"
+            f"export JOURNAL_LAB_CAP_URL={shlex.quote(f'http://127.0.0.1:{self.cap_port}/event')}\n"
+            f"export JOURNAL_LAB_CAP_TOKEN={shlex.quote(self.token)}\n"
+            f"exec {shlex.quote(sys.executable)} {shlex.quote(str(hook.resolve()))} \"$@\"\n",
+            encoding="utf-8",
+        )
+        forwarder.chmod(0o700)
         path = project / "src" / "journal" / "hooks" / "hook.sh"
         text = path.read_text(encoding="utf-8")
+        for variable in ("body", "sent"):
+            default = f"{variable}=$(mktemp)"
+            if default not in text:
+                raise ValueError("pinned journal hook cannot keep temporary files inside the run")
+            text = text.replace(default, f'{variable}=$(mktemp "${{TMPDIR%/}}/journal-hook.XXXXXXXXXX")', 1)
         event_line = 'event=$(sed -n \'s/.*"hook_event_name": *"\\([A-Za-z]*\\)".*/\\1/p\' "$sent" | head -1)'
         firing_line = 'firing="$$-$begun"'
         if event_line not in text:
@@ -422,7 +576,7 @@ print(plan["plan_id"])
             event_line + "\n"
             'case "$event" in\n'
             '    SessionStart|SessionEnd|UserPromptSubmit)\n'
-            '        "${JOURNAL_LAB_CAP_HOOK:?}" "$sent" "$firing" || { rm -f "$body" "$sent"; exit 2; } ;;\n'
+            f'        {shlex.quote(str(paths["runtime"] / "cap-hook"))} "$sent" "$firing" || {{ rm -f "$body" "$sent"; exit 2; }} ;;\n'
             'esac\n'
         )
         path.write_text(text[:end] + forwarding + text[end:], encoding="utf-8")
@@ -472,7 +626,7 @@ print(plan["plan_id"])
         environment = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "GIT_CONFIG_NOSYSTEM": "1",
                        "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0", "GIT_ALLOW_PROTOCOL": "file"}
         ProductionDriver.git(["init", "--quiet", str(target)], environment)
-        ProductionDriver.git(["-C", str(target), "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
+        ProductionDriver.git(["-C", str(target), "fetch", "--depth=1", "--quiet", "--no-tags", "--no-recurse-submodules",
                               str(source), commit], environment)
         ProductionDriver.git(["-C", str(target), "checkout", "--quiet", "--detach", "FETCH_HEAD"], environment)
         if ProductionDriver.head(target) != commit:

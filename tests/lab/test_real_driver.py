@@ -135,7 +135,7 @@ def test_production_driver_installs_cap_events_in_the_pinned_hook(tmp_path):
     hooks.mkdir(parents=True)
     runtime.mkdir(mode=0o700)
     (hooks / "hook.sh").write_text(
-        "#!/bin/sh\nfiring=\"$$-$begun\"\n"
+        "#!/bin/sh\nbody=$(mktemp)\nsent=$(mktemp)\nfiring=\"$$-$begun\"\n"
         "event=$(sed -n 's/.*\"hook_event_name\": *\"\\([A-Za-z]*\\)\".*/\\1/p' \"$sent\" | head -1)\n"
         "post() { :; }\n",
         encoding="utf-8",
@@ -147,9 +147,59 @@ def test_production_driver_installs_cap_events_in_the_pinned_hook(tmp_path):
     driver.install_cap_hook(project, {"runtime": runtime})
 
     hook = (hooks / "hook.sh").read_text(encoding="utf-8")
+    forwarder = runtime / "cap-hook"
+    assert 'body=$(mktemp "${TMPDIR%/}/journal-hook.XXXXXXXXXX")' in hook
+    assert 'sent=$(mktemp "${TMPDIR%/}/journal-hook.XXXXXXXXXX")' in hook
     assert 'SessionStart|SessionEnd|UserPromptSubmit' in hook
     assert '"$sent" "$firing"' in hook
+    assert str(forwarder) in hook
+    assert '${JOURNAL_LAB_CAP_HOOK' not in hook
+    assert "JOURNAL_LAB_CAP_URL=http://127.0.0.1:" in forwarder.read_text(encoding="utf-8")
+    assert f"JOURNAL_LAB_CAP_TOKEN={driver.token}" in forwarder.read_text(encoding="utf-8")
     assert (runtime / "gitconfig").is_file()
+
+
+def test_plan_start_uses_the_main_session_event_and_waits_for_the_plan_agent(tmp_path, monkeypatch):
+    paths = {"bin": tmp_path / "bin", "project": tmp_path / "project"}
+    paths["bin"].mkdir()
+    paths["project"].mkdir()
+    (paths["bin"] / "claude").touch(mode=0o700)
+    manifest = SimpleNamespace(data=lambda: {"design": {"settings": {"plans.plan_agents": True}}})
+    driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, tmp_path, tmp_path,
+                              ProductionWatchdog())
+    paths["tmp"] = driver.boundary.tmux_tmpdir
+    monkeypatch.setattr(driver.boundary, "tmux_directory_is_valid", lambda: True)
+    driver.prepared_plan = {"plan_id": 17, "plan_agents": True, "plan_mode": "organization",
+                            "plan_state": "approved"}
+    calls = []
+    monkeypatch.setattr(driver, "prepare_plan", lambda _scenario, _paths: "17")
+    monkeypatch.setattr(driver, "install_agent_interpreters", lambda _paths: None)
+    monkeypatch.setattr(driver, "preflight_tmux", lambda _paths: "ready")
+    monkeypatch.setattr(driver, "start_openrig", lambda _paths: None)
+    monkeypatch.setattr(driver, "start_main_session",
+                        lambda _paths, _caps, socket: calls.append(("main session", socket)))
+    monkeypatch.setattr(driver, "wait_for_agent_session", lambda _caps, count, _name="": calls.append(count))
+    caps = object()
+
+    plan_id = driver.start_plan({}, paths, caps)
+
+    assert plan_id == "17"
+    assert calls == [("main session", paths["tmp"] / "journal-main.sock"), 2]
+    assert driver.plan_started
+
+
+def test_plan_launch_preflight_rejects_missing_plan_agent_setup(tmp_path):
+    paths = {"bin": tmp_path / "bin"}
+    paths["bin"].mkdir()
+    (paths["bin"] / "claude").touch(mode=0o700)
+    manifest = SimpleNamespace(data=lambda: {"design": {"settings": {"plans.plan_agents": True}}})
+    driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, tmp_path, tmp_path,
+                              ProductionWatchdog())
+    driver.prepared_plan = {"plan_id": 17, "plan_agents": False, "plan_mode": "organization",
+                            "plan_state": "approved"}
+
+    with pytest.raises(ValueError, match="approved organization plan agent"):
+        driver.preflight_plan_agent_launch("17", paths)
 
 
 def test_production_boundary_policy_only_allows_run_storage_and_local_provider_proxy(tmp_path):
@@ -161,6 +211,16 @@ def test_production_boundary_policy_only_allows_run_storage_and_local_provider_p
     assert f'(allow file-write* (subpath "{root}"))' in policy
     assert '(allow file-read* (literal "/"))' in policy
     assert '(allow file-read* (literal "/private/var/select/sh"))' in policy
+    assert '(allow pseudo-tty)' in policy
+    assert '(allow file-read* file-write* file-ioctl (literal "/dev/ptmx"))' in policy
+    assert '(allow file-read* file-write* (require-all (regex #"^/dev/ttys[0-9]+") (extension "com.apple.sandbox.pty")))' in policy
+    assert '(allow file-ioctl (regex #"^/dev/ttys[0-9]+"))' in policy
+    socket_directory = json.dumps(str(boundary.tmux_tmpdir))
+    assert '(allow system-socket (socket-domain AF_UNIX))' in policy
+    assert f'(allow network-bind (local unix-socket (subpath {socket_directory})))' in policy
+    assert f'(allow network-outbound (remote unix-socket (subpath {socket_directory})))' in policy
+    assert '(allow network-bind (local unix-socket))' not in policy
+    assert '(allow network-outbound (remote unix-socket))' not in policy
     assert "(allow file-write*)" not in policy
     assert '(allow signal (target same-sandbox))' in policy
     assert '(allow process-info* (target same-sandbox))' in policy

@@ -3,9 +3,12 @@ import json
 import os
 from pathlib import Path
 import platform
+import signal
+import shlex
 import shutil
 import subprocess
 import sys
+import time
 from types import SimpleNamespace
 from urllib.request import urlopen
 
@@ -117,6 +120,7 @@ def test_pinned_source_snapshot_has_the_approved_commit_and_no_remote(tmp_path):
                              text=True, check=True).stdout
     assert ProductionDriver.head(target) == commit
     assert (target / "pinned.txt").read_text(encoding="utf-8") == "approved source\n"
+    assert (target / ".git" / "shallow").read_text(encoding="utf-8").strip() == commit
     assert not remotes.strip()
 
 
@@ -326,14 +330,16 @@ def test_stand_in_openrig_confirms_detached_child_liveness_under_its_real_bounda
     for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
                  "xdg_config", "xdg_cache", "bin"):
         paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
-    (paths["project"] / "src").mkdir()
+    shutil.copytree(source / "src", paths["project"] / "src")
     (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     stopped = False
+    interrupted = False
     try:
         driver.boundary.verify("run-1", paths)
         IsolatedJournal.install_journal_shim(paths, driver.journal_port)
         driver.env = driver.child_environment(paths, driver.journal_port)
         assert driver.probe_agent_cli(paths) == {"provider": "claude", "version": "stand-in-claude 1.0"}
+        driver.install_sigterm_handler()
         driver.start_openrig(paths)
 
         proof = Path(driver.env["OPENRIG_HOME"]) / "liveness-proof"
@@ -348,11 +354,21 @@ def test_stand_in_openrig_confirms_detached_child_liveness_under_its_real_bounda
         )
         assert driver.rig_started
     finally:
-        stopped = driver.stop_owned()
+        if driver.sigterm_handler is None:
+            stopped = driver.stop_owned()
+        elif not driver.stopped:
+            try:
+                handler = signal.getsignal(signal.SIGTERM)
+                assert handler == driver.sigterm_handler
+                handler(signal.SIGTERM, None)
+            except InterruptedError:
+                interrupted = True
+        stopped = driver.stopped or driver.stop_owned()
         if not stopped:
             driver.boundary.close()
 
     assert stopped, (Path(driver.env["OPENRIG_HOME"]) / "stop-error").read_text(encoding="utf-8")
+    assert interrupted
     assert (Path(driver.env["OPENRIG_HOME"]) / "daemon-stopped").read_text(encoding="utf-8") == "stopped"
 
 
@@ -388,7 +404,7 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
     for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
                  "xdg_config", "xdg_cache", "bin"):
         paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
-    (paths["project"] / "src").mkdir()
+    shutil.copytree(source / "src", paths["project"] / "src")
     (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     driver.boundary.verify("run-1", paths)
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
@@ -399,12 +415,17 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
 
         policy = driver.boundary.profile.read_text(encoding="utf-8")
         assert result == {"provider": "claude", "version": "stand-in-node-cli 1.0"}
+        assert len(driver.processes) == 1
+        assert (paths["runtime"] / "main-session-launcher.py").is_file()
+        launch_log = paths["project"] / ".journal" / "runtime" / "supervisor.log"
+        assert "ended: the supervisor's loop exited with 0" in launch_log.read_text(encoding="utf-8")
         assert (paths["bin"] / "node").resolve() == node
         assert f'(allow file-read* (literal {json.dumps(str(node))}))' in policy
         assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
         assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
     finally:
-        assert driver.boundary.close()
+        assert driver.stop_owned()
+        assert all(process.poll() is not None for process in driver.processes)
 
 
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
@@ -422,6 +443,7 @@ def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_bound
     tmux = stand_ins / "tmux"
     tmux.write_text(
         "#!/bin/sh\n"
+        "[ \"$1\" = -S ] && [ \"$3\" = kill-server ] && exit 0\n"
         "[ \"$1\" = -S ] && [ \"$3\" = list-sessions ] || exit 8\n"
         "physical_tmp=$(cd \"$TMUX_TMPDIR\" && pwd -P) || exit 9\n"
         "expected=\"$physical_tmp/tmux-$(id -u)/default\"\n"
@@ -507,6 +529,7 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
     monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
     driver = ProductionDriver("run-1", {"provider": "claude"}, None, checkout, tmp_path,
                               ProductionWatchdog())
+    monkeypatch.setattr(driver, "prepare_run_plan", lambda _paths: None)
     assert driver.cli_interpreters == {"node": node.resolve()}
     paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
     for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
@@ -517,6 +540,7 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
     policy = driver.boundary.profile.read_text(encoding="utf-8")
     assert f'(allow network-bind (local ip "localhost:{driver.share_port}"))' in policy
     shim = IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+    interrupted = False
 
     try:
         driver.start_journal(paths, shim, "run-1", "launch-1", "challenge-1", driver.journal_port, None)
@@ -527,7 +551,178 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
         sharing = json.loads((paths["project"] / ".journal" / "sharing.json").read_text(encoding="utf-8"))
         assert sharing["port"] == driver.share_port
     finally:
-        driver.stop_owned()
+        if driver.sigterm_handler is None:
+            driver.stop_owned()
+        else:
+            try:
+                handler = signal.getsignal(signal.SIGTERM)
+                assert handler == driver.sigterm_handler
+                handler(signal.SIGTERM, None)
+            except InterruptedError:
+                interrupted = True
+    assert interrupted
+    assert driver.journal_process is not None and driver.journal_process.poll() is not None
+
+
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
+                    reason="production plan-agent launch uses macOS sandbox-exec")
+def test_stand_in_main_session_starts_the_approved_plan_agent_and_records_both_sessions(tmp_path, monkeypatch):
+    monkeypatch.setattr(production_driver_module, "OPENRIG_STARTUP_SECONDS", 30)
+    root = tmp_path / "private-run"
+    checkout = Path(__file__).resolve().parents[2]
+    cli_directory = tmp_path / "agent-clis"
+    cli_directory.mkdir(mode=0o700)
+    provider_script = cli_directory / "stand-in-provider.py"
+    provider_script.write_text(
+        "import json, os, signal, subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "if any(key in os.environ for key in ('JOURNAL_LAB_CAP_HOOK', 'JOURNAL_LAB_CAP_URL', 'JOURNAL_LAB_CAP_TOKEN')): raise SystemExit('cap token leaked into provider environment')\n"
+        "if '--version' in sys.argv: print('stand-in-claude 1.0'); raise SystemExit(0)\n"
+        "root = Path(os.environ['JOURNAL_ROOT'])\n"
+        "temporary = Path(os.environ.get('TMPDIR', ''))\n"
+        "if temporary.parent != Path('/private/tmp') or not temporary.name.startswith('jl-'): raise SystemExit('main session temp path escaped the run boundary')\n"
+        "environment = os.environ['JOURNAL_ENV']\n"
+        "session = 'main-stand-in-session' if environment == 'main' else 'plan-stand-in-session'\n"
+        "settings = json.loads((root / '.claude' / 'settings.local.json').read_text(encoding='utf-8'))\n"
+        "events = ('SessionStart',) if environment == 'main' else ('SessionStart', 'UserPromptSubmit', 'SessionEnd')\n"
+        "for event in events:\n"
+        " payload = json.dumps({'hook_event_name': event, 'session_id': session, 'source': 'startup'})\n"
+        " command = settings['hooks'][event][0]['hooks'][0]['command']\n"
+        " result = subprocess.run(['/bin/sh', '-c', command], input=payload, text=True, env=os.environ.copy(), capture_output=True, timeout=20, check=False)\n"
+        " if result.returncode: raise SystemExit(result.stderr or f'hook failed: {event}')\n"
+        "(root / '.journal' / 'runtime' / f'{environment}-provider-started').write_text('started', encoding='utf-8')\n"
+        "if environment == 'main':\n"
+        " def stop(*_):\n"
+        "  (root / '.journal' / 'runtime' / 'main-provider-stopped').write_text('stopped', encoding='utf-8')\n"
+        "  raise SystemExit(0)\n"
+        " signal.signal(signal.SIGTERM, stop)\n"
+        " while True: time.sleep(1)\n",
+        encoding="utf-8",
+    )
+    provider = cli_directory / "claude"
+    provider.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = --version ]; then echo 'stand-in-claude 1.0'; exit 0; fi\n"
+        f"exec {shlex.quote(sys.executable)} {shlex.quote(str(provider_script))} \"$@\"\n",
+        encoding="utf-8",
+    )
+    provider.chmod(0o700)
+    daemon_server = (
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "class Handler(BaseHTTPRequestHandler):\n"
+        " def do_GET(self):\n"
+        "  self.send_response(200); self.send_header('Content-Type', 'application/json'); self.end_headers(); self.wfile.write(b'{\"semver\":\"0.7.6\"}')\n"
+        " def log_message(self, *_args): pass\n"
+        "import sys\nHTTPServer(('127.0.0.1', int(sys.argv[1])), Handler).serve_forever()\n"
+    )
+    rig = cli_directory / "rig"
+    rig.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, shutil, signal, subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "home = Path(os.environ['OPENRIG_HOME'])\n"
+        "arguments = sys.argv[1:]\n"
+        "if arguments[:2] == ['daemon', 'start']:\n"
+        " port = arguments[arguments.index('--port') + 1]\n"
+        f" child = subprocess.Popen([sys.executable, '-c', {daemon_server!r}, port], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)\n"
+        " (home / 'daemon.pid').write_text(str(child.pid), encoding='utf-8')\n"
+        "elif arguments[:2] == ['daemon', 'stop']:\n"
+        " for name in ('daemon.pid', 'agent.pid'):\n"
+        "  if (home / name).is_file():\n"
+        "   try: os.kill(int((home / name).read_text(encoding='utf-8')), signal.SIGTERM)\n"
+        "   except ProcessLookupError: pass\n"
+        " time.sleep(0.1)\n"
+        "elif arguments and arguments[0] == 'up':\n"
+        " spec = json.loads(Path(arguments[1]).read_text(encoding='utf-8'))\n"
+        " member = next(member for pod in spec['pods'] for member in pod['members'] if member['runtime'] == 'claude-code')\n"
+        " environment = dict(os.environ); environment.update(member['env'])\n"
+        " cli = shutil.which('claude', path=environment['PATH'])\n"
+        " log = (home / 'agent.log').open('ab')\n"
+        " child = subprocess.Popen([cli, '--stand-in-session', member['cwd']], cwd=member['cwd'], env=environment, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)\n"
+        " log.close(); (home / 'agent.pid').write_text(str(child.pid), encoding='utf-8')\n"
+        "else:\n raise SystemExit('unexpected stand-in rig arguments: ' + repr(arguments))\n",
+        encoding="utf-8",
+    )
+    rig.chmod(0o700)
+    tmux = cli_directory / "tmux"
+    tmux.write_text("#!/bin/sh\n[ \"$3\" = list-sessions ] && exit 0\n[ \"$3\" = kill-server ] && exit 0\nexit 9\n", encoding="utf-8")
+    tmux.chmod(0o700)
+    executables = {"claude": provider, "rig": rig, "tmux": tmux}
+    monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
+    settings = {
+        "plans.plan_agents": True,
+        "workers.cost_cap_dollars": 0,
+        "workers.default_plan_mode": "organization",
+        "workers.domain_agent_model_tier": "contract",
+        "workers.hub_route_strategy": "containment",
+        "workers.organization_plan_effort": "xhigh",
+        "workers.organization_plan_profile": "organization-plan-review",
+        "workers.seat_cap": 4,
+        "workers.shared_role_queue_order": "plans_in_turn",
+    }
+    manifest = SimpleNamespace(digest="stand-in-manifest", data=lambda: {"design": {"settings": settings}})
+    spec = {
+        "provider": "claude", "business_type": "software_company", "scenario": "production_incident",
+        "journal_commit": PINNED_BATCH_JOURNAL_COMMIT,
+        "organization_commit": PINNED_BATCH_ORGANIZATION_COMMIT,
+        "design_digest": "stand-in-design", "seed": 1, "model": "opus",
+        "metric_schema_version": "business-plan-v1",
+    }
+    organization_repository = ProductionDriver.default_organization_repository(checkout)
+    watchdog = ProductionWatchdog()
+    driver = ProductionDriver("run-1", spec, manifest, checkout, organization_repository, watchdog)
+    caps, ledger_path = real_caps(tmp_path, watchdog, run_wall_minutes=1,
+                                  run_concurrent_sessions=2, run_turns=2, turns_per_session=2)
+    paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    interrupted = False
+    try:
+        driver.boundary.verify("run-1", paths)
+        driver.materialize_project(spec, paths)
+        shim = IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+        driver.start_journal(paths, shim, "run-1", "launch-1", "challenge-1", driver.journal_port, caps)
+        scenario = driver.load_scenario("production_incident", paths)
+
+        plan_id = driver.start_plan(scenario, paths, caps)
+
+        runtime = paths["project"] / ".journal" / "runtime"
+        main_marker = runtime / "main-provider-started"
+        plan_marker = runtime / "plan-1-provider-started"
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and not (main_marker.is_file() and plan_marker.is_file()):
+            time.sleep(0.1)
+        assert main_marker.read_text(encoding="utf-8") == "started"
+        assert plan_marker.read_text(encoding="utf-8") == "started"
+        run = caps.read()["runs"]["run-1"]
+        assert run["sessions"]["main-stand-in-session"] == {"active": True, "turns": 0}
+        assert run["sessions"]["plan-stand-in-session"] == {"active": False, "turns": 1}
+        assert len(run["requests"]) == 1
+        assert driver.plan_started and plan_id == "1"
+        record = driver.read_record("run-1")
+        record_store = RunRecordStore()
+        record_store.write(paths["evidence"], record)
+        assert record_store.read(paths["evidence"] / "run-record.json") == record
+        assert json.loads(ledger_path.read_text(encoding="utf-8"))["runs"]["run-1"]["sessions"]
+    finally:
+        if driver.sigterm_handler is None:
+            stopped = driver.stop_owned("stand-in test finished")
+        else:
+            try:
+                handler = signal.getsignal(signal.SIGTERM)
+                assert handler == driver.sigterm_handler
+                handler(signal.SIGTERM, None)
+            except InterruptedError:
+                interrupted = True
+            stopped = driver.stopped
+        caps.finish_run(stopped)
+    assert interrupted
+    assert stopped
+    assert driver.main_session_process is not None and driver.main_session_process.poll() is not None
+    assert (root / "project" / ".journal" / "runtime" / "main-provider-stopped").is_file()
+    assert all(process.poll() is not None for process in driver.processes)
+    assert driver.rig_stop_confirmation.is_file()
 
 
 @pytest.mark.parametrize(("business_type", "scenario_name", "provider"), BATCH_SCENARIOS,
@@ -587,11 +782,13 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         driver.start_journal(paths, shim, "run-1", "launch-1", "challenge-1", driver.journal_port, None)
         scenario = driver.load_scenario(scenario_name, paths)
         plan_id = driver.prepare_plan(scenario, paths)
+        with urlopen(f"http://127.0.0.1:{driver.journal_port}/journal/settings", timeout=3) as response:
+            live_settings = json.load(response)
         harness_loader = paths["runtime"] / "driver-harness" / "tests" / "lab" / "scenario_loader.py"
         checkout_loader = checkout / "tests" / "lab" / "scenario_loader.py"
         business = BusinessType.read(checkout / "tests" / "lab" / "business_types" / f"{business_type}.toml")
-        shown = driver.command([sys.executable, str(paths["project"] / "src" / "journal.py"),
-                                "plan", "show", plan_id], paths)
+        launch_preflight = driver.preflight_plan_agent_launch(str(plan_id), paths)
+        shown = driver.journal_command(["plan", "show", plan_id], paths)
         expected = LabScenario.read(scenario["path"])
         expected_domains = [business.organization_domain_map[task["domain"]]
                             for phase in expected.phases for task in phase["tasks"]]
@@ -603,6 +800,14 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
 
         assert shown.returncode == 0, shown.stderr
         assert shown.stdout.splitlines()[0].startswith(f"plan {plan_id} approved:")
+        assert launch_preflight["plan_agents"] is True
+        assert launch_preflight["plan_mode"] == "organization"
+        assert Path(launch_preflight["main_session_launcher"]).is_file()
+        assert launch_preflight["supervisor_socket"] == str(paths["tmp"] / "journal-main.sock")
+        assert live_settings["plans"]["plan_agents"] is True
+        assert live_settings["workers"]["organization_folder"] == str(pinned_organization)
+        assert (paths["project"] / ".claude" / "settings.local.json").is_file()
+        assert (paths["project"] / ".claude" / "skills" / "journal" / "SKILL.md").is_file()
         assert set(expected_domains) <= pinned_domains
         assert actual_domains == expected_domains
         assert harness_loader.read_bytes() == checkout_loader.read_bytes()
