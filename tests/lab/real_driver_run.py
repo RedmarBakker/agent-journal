@@ -256,7 +256,7 @@ def test_stand_in_openrig_confirms_detached_child_liveness_under_its_real_bounda
     provider.write_text(
         "#!/usr/bin/env node\n"
         "if (process.argv.includes('--version')) console.log('stand-in-claude 1.0');\n"
-        "else process.exit(7);\n",
+        "else if (!process.argv.includes('--init-only')) process.exit(7);\n",
         encoding="utf-8",
     )
     provider.chmod(0o700)
@@ -338,7 +338,10 @@ def test_stand_in_openrig_confirms_detached_child_liveness_under_its_real_bounda
         driver.boundary.verify("run-1", paths)
         IsolatedJournal.install_journal_shim(paths, driver.journal_port)
         driver.env = driver.child_environment(paths, driver.journal_port)
-        assert driver.probe_agent_cli(paths) == {"provider": "claude", "version": "stand-in-claude 1.0"}
+        assert driver.probe_agent_cli(paths) == {
+            "provider": "claude", "version": "stand-in-claude 1.0",
+            "settings_probe": "init-only-hooks-disabled",
+        }
         driver.install_sigterm_handler()
         driver.start_openrig(paths)
 
@@ -375,7 +378,7 @@ def test_stand_in_openrig_confirms_detached_child_liveness_under_its_real_bounda
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None
                     or shutil.which("node") is None,
                     reason="Node CLI probe uses macOS sandbox-exec and the installed Node interpreter")
-def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, monkeypatch):
+def test_claude_settings_probe_uses_private_temp_under_the_real_boundary(tmp_path, monkeypatch):
     root = tmp_path / "private-run"
     source = Path(__file__).resolve().parents[2]
     cli_directory = tmp_path / "agent-clis"
@@ -383,8 +386,21 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
     provider = cli_directory / "claude"
     provider.write_text(
         "#!/usr/bin/env node\n"
+        "const fs = require('node:fs');\n"
+        "const path = require('node:path');\n"
         "if (process.argv.includes('--version')) console.log('stand-in-node-cli 1.0');\n"
-        "else process.exit(7);\n",
+        "else if (process.argv.includes('--init-only')) {\n"
+        " const overrides = JSON.parse(process.argv[process.argv.lastIndexOf('--settings') + 1]);\n"
+        " if (overrides.disableAllHooks !== true) throw new Error('settings probe would run session hooks');\n"
+        " const settings = JSON.parse(fs.readFileSync(path.join(process.env.JOURNAL_ROOT, '.claude', 'settings.local.json'), 'utf8'));\n"
+        " if (settings.env.LAB_SETTINGS_MARKER !== 'read') throw new Error('project settings were not read');\n"
+        " const temporary = path.join(process.env.CLAUDE_CODE_TMPDIR || '/tmp', `claude-${process.getuid()}`);\n"
+        " fs.mkdirSync(temporary, { recursive: true, mode: 0o700 });\n"
+        " fs.writeFileSync(path.join(temporary, 'settings-read'), 'read');\n"
+        "} else {\n"
+        " fs.writeFileSync(path.join(process.env.JOURNAL_ROOT, 'model-started'), 'started');\n"
+        " process.exit(7);\n"
+        "}\n",
         encoding="utf-8",
     )
     provider.chmod(0o700)
@@ -406,6 +422,11 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
         paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     shutil.copytree(source / "src", paths["project"] / "src")
     (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    settings_directory = paths["project"] / ".claude"
+    settings_directory.mkdir()
+    (settings_directory / "settings.local.json").write_text(
+        json.dumps({"env": {"LAB_SETTINGS_MARKER": "read"}}), encoding="utf-8",
+    )
     driver.boundary.verify("run-1", paths)
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
     driver.env = driver.child_environment(paths, driver.journal_port)
@@ -414,8 +435,11 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
         result = driver.probe_agent_cli(paths)
 
         policy = driver.boundary.profile.read_text(encoding="utf-8")
-        assert result == {"provider": "claude", "version": "stand-in-node-cli 1.0"}
-        assert len(driver.processes) == 1
+        assert result == {"provider": "claude", "version": "stand-in-node-cli 1.0",
+                          "settings_probe": "init-only-hooks-disabled"}
+        assert len(driver.processes) == 2
+        assert (paths["tmp"] / f"claude-{os.getuid()}" / "settings-read").read_text(encoding="utf-8") == "read"
+        assert not (paths["project"] / "model-started").exists()
         assert (paths["runtime"] / "main-session-launcher.py").is_file()
         launch_log = paths["project"] / ".journal" / "runtime" / "supervisor.log"
         assert "ended: the supervisor's loop exited with 0" in launch_log.read_text(encoding="utf-8")
@@ -581,6 +605,8 @@ def test_stand_in_main_session_starts_the_approved_plan_agent_and_records_both_s
         "root = Path(os.environ['JOURNAL_ROOT'])\n"
         "temporary = Path(os.environ.get('TMPDIR', ''))\n"
         "if temporary.parent != Path('/private/tmp') or not temporary.name.startswith('jl-'): raise SystemExit('main session temp path escaped the run boundary')\n"
+        "claude_temporary = Path(os.environ.get('CLAUDE_CODE_TMPDIR', '/tmp')) / f'claude-{os.getuid()}'\n"
+        "claude_temporary.mkdir(mode=0o700, parents=True, exist_ok=True)\n"
         "environment = os.environ['JOURNAL_ENV']\n"
         "session = 'main-stand-in-session' if environment == 'main' else 'plan-stand-in-session'\n"
         "settings = json.loads((root / '.claude' / 'settings.local.json').read_text(encoding='utf-8'))\n"

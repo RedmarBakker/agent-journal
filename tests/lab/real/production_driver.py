@@ -150,6 +150,7 @@ class ProductionDriver:
             "HTTP_PROXY": f"http://127.0.0.1:{self.proxy_port}",
             "NO_PROXY": "localhost,127.0.0.1",
             "TMUX_TMPDIR": str(paths["tmp"].resolve()),
+            "CLAUDE_CODE_TMPDIR": str(paths["tmp"].resolve()),
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": str(paths["runtime"] / "gitconfig"),
             "GIT_ALLOW_PROTOCOL": "file",
@@ -160,18 +161,29 @@ class ProductionDriver:
     def probe_agent_cli(self, paths: Mapping[str, Path]) -> dict[str, str]:
         provider = str(self.spec["provider"])
         self.install_agent_interpreters(paths)
-        command = self.main_session_command(paths, paths["tmp"] / MAIN_SUPERVISOR_SOCKET, ("--version",))
+        stdout, stderr = self.run_cli_probe(paths, ("--version",), "version")
+        version = stdout.strip() or stderr.strip()
+        if not version:
+            raise ValueError(f"{provider} CLI version probe returned no version")
+        result = {"provider": provider, "version": version.splitlines()[0]}
+        if provider == "claude":
+            self.run_cli_probe(paths, ("--init-only", "--settings", '{"disableAllHooks":true}'),
+                               "settings initialization")
+            result["settings_probe"] = "init-only-hooks-disabled"
+        return result
+
+    def run_cli_probe(self, paths: Mapping[str, Path], arguments: tuple[str, ...],
+                      purpose: str) -> tuple[str, str]:
+        command = self.main_session_command(paths, paths["tmp"] / MAIN_SUPERVISOR_SOCKET, arguments)
         process = subprocess.Popen(self.boundary.wrap(command), cwd=paths["project"], env=self.env,
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    text=True, start_new_session=True)
         self.processes.append(process)
         stdout, stderr = process.communicate(timeout=60)
         if process.returncode:
-            raise ValueError(stderr.strip() or f"{provider} CLI version probe failed")
-        version = stdout.strip() or stderr.strip()
-        if not version:
-            raise ValueError(f"{provider} CLI version probe returned no version")
-        return {"provider": provider, "version": version.splitlines()[0]}
+            detail = stderr.strip() or stdout.strip()
+            raise ValueError(f"{self.spec['provider']} CLI {purpose} probe failed: {detail}")
+        return stdout, stderr
 
     def install_agent_interpreters(self, paths: Mapping[str, Path]) -> None:
         for name, interpreter in self.cli_interpreters.items():

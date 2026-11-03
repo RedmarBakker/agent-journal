@@ -57,6 +57,7 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     monkeypatch.setattr("tests.lab.real.production_driver.shutil.which",
                         lambda name: str(executables[name]) if name in executables else None)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(profile))
+    monkeypatch.setenv("CLAUDE_CODE_TMPDIR", str(tmp_path / "host-claude-temp"))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-copy")
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-copy")
     manifest = SimpleNamespace(digest="manifest-digest", data=lambda: {"design": {"settings": {}}})
@@ -74,6 +75,7 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     assert "ANTHROPIC_API_KEY" not in environment
     assert "OPENAI_API_KEY" not in environment
     assert environment["TMUX_TMPDIR"] == str(driver.boundary.tmux_tmpdir)
+    assert environment["CLAUDE_CODE_TMPDIR"] == str(paths["tmp"].resolve())
 
 
 
