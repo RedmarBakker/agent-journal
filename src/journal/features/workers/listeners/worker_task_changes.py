@@ -47,7 +47,7 @@ class WorkerTaskChanges(Listener[RowEvent]):
 
     def released(self, event: TaskClosed, task: Task) -> None:
         holder = self.tasks.holder(task)
-        if holder is None or holder.type != "workers":
+        if holder is None or holder.type != "workers" or holder.id == event.worker_id:
             return
         self.tasks.release_task(holder, event.task_id, Actor.system())
         if not self.tasks.holder_task_ids(holder):
