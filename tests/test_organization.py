@@ -34,6 +34,7 @@ from journal.features.organization.support.caps import Caps
 from journal.features.organization.support.edge import Edge
 from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.organization_data_reader import OrganizationDataReader
+from journal.features.organization.support.organization_hub import OrganizationHub
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.features.organization.support.role_escalation import RoleEscalation
@@ -42,7 +43,7 @@ from journal.features.organization.support.role_models import RoleModels
 from journal.features.organization.support import seat_runner as seat_runner_module
 from journal.features.organization.support import seat_runtime as seat_runtime_module
 from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
-from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.rig_names import RigNames
 from journal.features.organization.support.rig_folders import RigFolders
 from journal.features.organization.support.rig_seats import RigSeats
@@ -73,6 +74,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.environments import Environments
 from journal.repositories.links import Links
+from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.scope import Scope
 from journal.repositories.approvals import Approvals
 from journal.repositories.questions import Questions
@@ -2481,6 +2483,46 @@ def test_a_journal_role_job_uses_a_fresh_openrig_launch(app, monkeypatch):
     runner.launch_fresh(member, worker, identity)
 
     assert calls == [(member, "journal worker 18 starts task 57 with a fresh context")], "the Role runner uses the fresh-stop OpenRig launch for its job"
+
+
+def test_a_role_seat_starting_during_dispatch_already_has_its_handoff(app, tmp_path, monkeypatch):
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "builder", cardinality="many", writes=True, tools=["read_files", "edit_files"],
+                 model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["builder"])
+    organization.reload()
+    actor = Actor.system()
+    scope = app.container.get(Scope)
+    with scope.environment(1):
+        plans, tasks, links = (app.container.get(kind) for kind in (Plans, Tasks, Links))
+        plan = plans.save(Plan(environment_id=1, title="Build the floor", state=PlanState.STARTED,
+                               mode=PlanMode.ORGANIZATION), actor)
+        task = tasks.save(Task(environment_id=1, title="Build the floor", brief="Build the floor."), actor)
+        links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        app.container.get(DomainRows).task_tied(task, "alpha", actor)
+        hub = app.container.get(OrganizationHub)
+        handoffs = app.container.get(OrganizationHandoffs)
+        member = SeatMember(app.container.get(RigNames).plan(plan.id), "0.7.6", "alpha", "domain-agent",
+                            "alpha.domain-agent", "alpha-domain-agent@plan", "claude", "sonnet", "claude-code",
+                            "agent:domain", "token", "plan-1", str(app.config.root), "", "", "", "domain:alpha")
+        observed = []
+
+        def require_role_task_dispatchable(_worker_command, *_arguments):
+            return None
+
+        def dispatch_role_task(_worker_command, dispatched_task, role, caller):
+            observed.extend(
+                routed.row_id for _, routed_plan, routed in handoffs.pending("role:alpha/builder")
+                if routed_plan.row_id == plan.row_id and routed.row_id == dispatched_task.row_id
+            )
+
+        worker_command = type(hub.workers)
+        monkeypatch.setattr(worker_command, "require_role_task_dispatchable", require_role_task_dispatchable)
+        monkeypatch.setattr(worker_command, "dispatch_role_task", dispatch_role_task)
+        hub.handoff_task(task.row_id, "role:alpha/builder", "domain:alpha", member,
+                         Caller.agent("main", "domain-session", "claude"))
+
+    assert observed == [task.row_id], "a Role session waking inside dispatch can already read the handoff that started it"
 
 
 def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its_domain_agent(app, tmp_path, monkeypatch):
