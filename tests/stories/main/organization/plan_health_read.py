@@ -3,13 +3,12 @@ from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
+from tests.stories.fixtures.main.organization_plan_with_domain_seats import OrganizationPlanWithDomainSeats
 
 
-@story(OrganizationPlanSeat, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithDomainSeats, subject=AgentRole.MAIN)
 def test_a_plan_seat_runs_its_journal_health_check_without_a_prompt(story):
     plan = story.plans.first
-    story.agent_runs(story.agents.main, f"plan start {plan}").expect_command_passed()
     story.agent_starts_plan_seat(story.agents.main, plan).expect_allowed(story.agents.main)
 
     port = story.app.container.get(RigSpecs).journal_port()
