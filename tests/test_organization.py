@@ -285,16 +285,17 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
     }
     journal_commands = tuple(dict.fromkeys(("journal", str(writer.command()), os.path.relpath(writer.command(), app.config.root))))
     scoped_journal_commands = {f"Bash(JOURNAL_ENV=* {command} *)" for command in journal_commands}
+    health_command = OrganizationSeatRouting.health_command_for(writer.journal_port())
     shell_guidance = (
         "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, "
         "or another shell command. If needed, check this journal's health with "
-        f"`{OrganizationSeatRouting.health_command}` as a separate command. Do not use curl for another URL."
+        f"`{health_command}` as a separate command. Do not use curl for another URL."
     )
     file_guidance = (
         "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
         "Use Edit or Write for file changes only when this seat is allowed to write."
     )
-    health_read = f"Bash({OrganizationSeatRouting.health_command})"
+    health_read = f"Bash({health_command})"
 
     for member_id in ("plan-agent", "domain-agent", "planner"):
         permissions = members[member_id]["claude_permissions"]

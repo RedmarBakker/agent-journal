@@ -37,7 +37,6 @@ HOOKS = "journal-hooks"
 SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
 DENIED = ("Bash(git *)", "Bash(rig send *)", "Bash(rig queue *)")
 WORKER_COMMANDS = ("Bash(rig context *)", "Bash(nohup *)")
-JOURNAL_HEALTH_READ = f"Bash({OrganizationSeatRouting.health_command})"
 CODEX_ROUTE_RULES = '''prefix_rule(
     pattern = ["rig", "send"],
     decision = "forbidden",
@@ -307,8 +306,9 @@ class RigSpecs:
         scoped_proof_commands = tuple(
             f"Bash({command} {noun} *)" for command in scoped_commands for noun in ("proof", "clock-out")
         )
+        health_read = f"Bash({OrganizationSeatRouting.health_command_for(self.journal_port())})"
         allow.extend((
-            *WORKER_COMMANDS, JOURNAL_HEALTH_READ, *read_only_commands, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
+            *WORKER_COMMANDS, health_read, *read_only_commands, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
             *scoped_journal_commands,
             *scoped_worker_commands, *scoped_task_commands, *scoped_proof_commands,
             *(tool for tool in seat.tools if tool != "Read"),
@@ -320,10 +320,20 @@ class RigSpecs:
 
     def agent(self, folder: Path, seat: Seat) -> None:
         (folder / GUIDANCE).parent.mkdir(parents=True, exist_ok=True)
+        health_command = OrganizationSeatRouting.health_command_for(self.journal_port())
         (folder / GUIDANCE).write_text(seat.guidance)
         provider = self.providers.lookup(seat.provider)
+        skills = self.skills_written(folder / "skills", seat)
+        self.bind_health_command(folder, health_command)
         hooks = self.hook_resource(provider, folder)
-        self.written(folder / "agent.yaml", self.agent_spec(seat, self.skills_written(folder / "skills", seat), provider, folder, hooks))
+        self.written(folder / "agent.yaml", self.agent_spec(seat, skills, provider, folder, hooks))
+
+    @staticmethod
+    def bind_health_command(folder: Path, command: str) -> None:
+        for path in folder.rglob("*.md"):
+            content = path.read_text()
+            if OrganizationSeatRouting.health_command in content:
+                path.write_text(content.replace(OrganizationSeatRouting.health_command, command))
 
     def refresh_agent(self, folder: Path, seat: Seat) -> None:
         skills = folder / "skills"

@@ -4,7 +4,12 @@ from journal.support.skill import Skill
 class OrganizationSeatRouting:
     """The route instructions shared by every generated organization seat."""
 
-    health_command = "curl -s http://127.0.0.1:$JOURNAL_PORT/journal/health"
+    health_command = 'curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$JOURNAL_PORT/journal/health'
+
+    @classmethod
+    def health_command_for(cls, port: str) -> str:
+        return cls.health_command.replace("$JOURNAL_PORT", port)
+
     guidance = (
         "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
         "Use Edit or Write for file changes only when this seat is allowed to write. "
