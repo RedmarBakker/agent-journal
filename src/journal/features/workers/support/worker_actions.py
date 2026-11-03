@@ -339,7 +339,7 @@ class WorkerActions:
         return worker
 
     def is_session_busy(self, worker: Worker) -> bool:
-        if not worker.pid or not self.runner.is_running(worker.pid):
+        if not worker.pid or not self.runner.is_running(worker):
             return False
         if not self.providers.lookup(worker.provider).session_inbox:
             raise Rejection(SESSION_BUSY_REFUSAL.format(n=worker.id, provider=worker.provider.capitalize()))

@@ -143,6 +143,33 @@ class WorkerSteps:
         self.agent_has_written(agent, "the worker started its task")
         return self.worker_run_ends_printing(agent, "")
 
+    def codex_worker_runs_as_a_live_process_sharing_a_role_pid(self, seat: StoryAgent) -> int:
+        import os
+        from journal.features.workers.jobs.worker_watch import WorkerWatch
+        from journal.models.worker import Worker
+        from journal.repositories.scope import Scope
+
+        workers = self.app.container.get(Workers)
+        scope = self.app.container.get(Scope)
+        role = workers.global_matching(id=seat.number)[0]
+        with scope.environment(role.environment_id):
+            worker = workers.save(
+                Worker(name="Grace Hopper", brief="the live Codex run", provider="codex", model="gpt-6.1-sol"),
+                Actor.system(),
+            )
+            worker = worker.with_(token_hash="live-codex-token").running_as(os.getpid(), time.time()).with_(
+                session="live-codex-session", resume="live-codex-session",
+            )
+            worker = workers.save(worker, Actor.system())
+            output, _ = self.app.container.get(WorkerRunner).outputs(worker)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text("")
+            watch = self.app.container.get(WorkerWatch)
+            watch.add(worker)
+            watch.tick(time.time())
+        self.settle()
+        return worker.id
+
     def worker_run_ends_printing(self, agent: StoryAgent, printed: str) -> StepResult:
         self.settle()
         runner = self.app.container.get(WorkerRunner)

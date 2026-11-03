@@ -145,7 +145,7 @@ class WorkerRunner:
     def is_finished(self, worker: Worker, actor: Actor) -> bool:
         if self.seats.applies(worker):
             return self.seats.is_finished(worker, actor, self.finish_seat)
-        if not self.is_running(worker.pid):
+        if not self.is_running(worker):
             self.recorded_end(worker, actor)
             return True
         if self.remaining_seconds(worker) == 0:
@@ -282,14 +282,14 @@ class WorkerRunner:
     def read(path: Path) -> str:
         return path.read_text(errors="replace") if path.is_file() else ""
 
-    def is_running(self, pid: int) -> bool:
-        return not self.seats.is_seat_pid(pid) and ProcessCheck.is_running(pid)
+    def is_running(self, worker: Worker) -> bool:
+        return not self.seats.applies(worker) and ProcessCheck.is_running(worker.pid)
 
     def stop(self, worker: Worker) -> None:
         if self.seats.applies(worker):
             self.seats.stop(worker, "journal worker stopped")
             return
-        if self.is_running(worker.pid) and os.getpgid(worker.pid) == worker.pid:
+        if self.is_running(worker) and os.getpgid(worker.pid) == worker.pid:
             os.killpg(worker.pid, signal.SIGTERM)
 
     def workplace(self, worker: Worker) -> tuple[str, ...]:

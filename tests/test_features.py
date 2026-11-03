@@ -1988,7 +1988,6 @@ def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter():
 
 
 def test_a_codex_seat_process_is_reused_through_the_seat_runner_instead_of_the_claude_inbox(app: App):
-    import os
     from journal.features.workers.support.worker_actions import WorkerActions
     from journal.models.worker import Worker
 
@@ -1997,13 +1996,13 @@ def test_a_codex_seat_process_is_reused_through_the_seat_runner_instead_of_the_c
 
     class Seats:
         @staticmethod
-        def is_seat_pid(pid):
-            return pid == os.getpid()
+        def applies(worker):
+            return worker.role == "builder"
 
     runner.seats = Seats()
     actions.runner = runner
-    worker = Worker(name="Ada Lovelace", provider="codex", pid=os.getpid(), session="thread-9", resume="thread-9", role="builder", plan_id=8)
-    assert not actions.is_session_busy(worker) and not runner.is_running(worker.pid)
+    worker = Worker(name="Ada Lovelace", provider="codex", pid=91, session="thread-9", resume="thread-9", role="builder", plan_id=8)
+    assert not actions.is_session_busy(worker) and not runner.is_running(worker)
 
 
 def test_worker_watch_reconnects_to_an_active_seat_process_after_restart():
@@ -2276,6 +2275,7 @@ def test_a_worker_outlives_a_restart_and_is_watched_again_at_boot(app: App, tmp_
     from journal.repositories.messages import Messages
     from journal.repositories.scope import Scope
     from journal.repositories.workers import Workers
+    from journal.support.process_check import ProcessCheck
     workers, runner, scope = app.container.get(Workers), app.container.get(WorkerRunner), app.container.get(Scope)
     with scope.environment(1):
         active = workers.save(Worker(name="Mr. Babbage", brief="the parser", model="sonnet"), Actor.system())
@@ -2290,7 +2290,7 @@ def test_a_worker_outlives_a_restart_and_is_watched_again_at_boot(app: App, tmp_
     app.container.get(WorkersSeed).run()
     done.write_text("\n")
     end = timing.monotonic() + 3
-    while runner.is_running(pid) and timing.monotonic() < end:
+    while ProcessCheck.is_running(pid) and timing.monotonic() < end:
         timing.sleep(0.01)
     app.container.get(WorkerWatch).tick(timing.time())
     with scope.environment(1):
