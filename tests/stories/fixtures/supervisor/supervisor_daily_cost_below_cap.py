@@ -5,3 +5,4 @@ class SupervisorDailyCostBelowCap(SupervisorDailyCost):
     """A supervisor grant can afford one settled run and reserve another on the same UTC day."""
 
     daily_cost_limit_microusd = SupervisorDailyCost.daily_cost_limit_microusd * 2
+    owner_route = "/journal/supervisor/records?period=today&plan_id={plan_id}"

@@ -1,7 +1,7 @@
 from journal.features.tasks.states.ready import Ready
 from journal.repositories.environments import Environments
-from tests.stories.fixtures.main.new_session import NewSession
 from tests.stories.fixtures.supervisor.supervisor_grant_fixture import SupervisorGrantFixture
+from tests.stories.fixtures.supervisor.supervisor_owner_plan_list import SupervisorOwnerPlanList
 from tests.test_supervisor_actions import _admitted_maintenance_context, maintenance_request
 from tests.test_supervisor_authority import seeded
 
@@ -9,7 +9,7 @@ from tests.test_supervisor_authority import seeded
 class SupervisorProposal(SupervisorGrantFixture):
     """A shadow-mode supervisor has a current wake and one plan-priority operation."""
 
-    parent = NewSession
+    parent = SupervisorOwnerPlanList
 
     def steps(self, story) -> None:
         self.restore_on(story)
@@ -35,7 +35,7 @@ class SupervisorProposal(SupervisorGrantFixture):
         }
         self.proposal_rationale = self.proposal_request["rationale"]
         story.closers.append(lambda: fixture.authority.secrets_store.drop(fixture.credentials))
-        result = story.user_opens_in(self.supervisor_environment, "/journal/plans")
+        result = story.user_opens_in(self.supervisor_environment, "/journal/supervisor/history")
         result.expect_viewer_passed()
 
     def expected(self, story) -> None:

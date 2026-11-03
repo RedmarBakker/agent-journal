@@ -1,15 +1,7 @@
-from uuid import uuid4
-
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.supervisor.supervisor_scheduled_wake import SupervisorScheduledWake
-
-
-def scheduled_wake(story):
-    return story.supervisor_posts("/_supervisor/v1/admit", {
-        "protocol_version": 1, "source": "timer", "observation_cursor": None,
-        "wakeup_id": uuid4().hex, "kind": "scheduled",
-    })
+from tests.stories.fixtures.supervisor.supervisor_first_scheduled_wake import SupervisorFirstScheduledWake
+from tests.stories.fixtures.supervisor.supervisor_scheduled_wake import scheduled_wake
 
 
 def records(story):
@@ -23,13 +15,9 @@ def expect_grant_covers_plan(story):
     story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
 
 
-@story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
+@story(SupervisorFirstScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_scheduled_wake_with_no_change_is_skipped_as_quiet(story):
     expect_grant_covers_plan(story)
-    story.time_travel(minutes=15)
-    first = scheduled_wake(story)
-    first.expect_viewer_passed()
-    first.expect_viewer_part(("reason",), "empty")
 
     story.time_travel(minutes=15)
     quiet = scheduled_wake(story)
@@ -44,13 +32,9 @@ def test_a_scheduled_wake_with_no_change_is_skipped_as_quiet(story):
     story.expect_stack(story.agents.subject)
 
 
-@story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
+@story(SupervisorFirstScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_task_change_keeps_the_next_scheduled_wake_from_being_quiet(story):
     expect_grant_covers_plan(story)
-    story.time_travel(minutes=15)
-    first = scheduled_wake(story)
-    first.expect_viewer_passed()
-    first.expect_viewer_part(("reason",), "empty")
 
     changed = story.user_types_in(
         story.fixture.supervisor_owner_environment,

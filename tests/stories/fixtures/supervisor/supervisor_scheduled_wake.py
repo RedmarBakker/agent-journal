@@ -1,23 +1,33 @@
+from uuid import uuid4
+
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
 from journal.repositories.environments import Environments
 from journal.support.time_source import TimeSource
 from journal.supervisor_authority import SupervisorAuthority
-from tests.stories.fixtures.main.new_session import NewSession
 from tests.stories.fixtures.supervisor.supervisor_grant_fixture import SupervisorGrantFixture
+from tests.stories.fixtures.supervisor.supervisor_owner_plan_list import SupervisorOwnerPlanList
 from tests.test_supervisor_authority import enrollment, seeded
+
+
+def scheduled_wake(story):
+    return story.supervisor_posts("/_supervisor/v1/admit", {
+        "protocol_version": 1, "source": "timer", "observation_cursor": None,
+        "wakeup_id": uuid4().hex, "kind": "scheduled",
+    })
 
 
 class SupervisorScheduledWake(SupervisorGrantFixture):
     """An active supervisor grant has a pinned scheduled wake interval."""
 
-    parent = NewSession
+    parent = SupervisorOwnerPlanList
     valid_for_minutes = 180
     event_wakeups = ("failed_check",)
     daily_cost_limit_microusd = 10_000
     max_input_tokens_per_turn = 1_000
     max_output_tokens_per_turn = 1_000
     story_start_at = None
+    owner_route = "/journal/plans"
 
     def steps(self, story) -> None:
         self.restore_on(story)
@@ -51,7 +61,10 @@ class SupervisorScheduledWake(SupervisorGrantFixture):
         story.plans.first = grant["plan_id"]
         story.grants.first = grant["grant_id"]
         story.closers.append(lambda: authority.secrets_store.drop(fixture.credentials))
-        opened = story.user_opens_in(self.supervisor_owner_environment, "/journal/plans")
+        opened = story.user_opens_in(
+            self.supervisor_owner_environment,
+            self.owner_route.format(plan_id=grant["plan_id"]),
+        )
         opened.expect_viewer_passed()
 
     def expected(self, story) -> None:
@@ -62,3 +75,4 @@ class SupervisorScheduledWakeExpiresSoon(SupervisorScheduledWake):
     """An active supervisor grant expires before its next scheduled wake."""
 
     valid_for_minutes = 10
+    owner_route = "/journal/supervisor/control"

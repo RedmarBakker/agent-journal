@@ -8,3 +8,4 @@ class SupervisorEventWake(SupervisorScheduledWake):
         "failed_check", "stalled_task", "stale_worker",
         "message_to_supervisor", "question_to_supervisor",
     )
+    owner_route = "/journal/supervisor/records?period=today&plan_id={plan_id}&area=checks"

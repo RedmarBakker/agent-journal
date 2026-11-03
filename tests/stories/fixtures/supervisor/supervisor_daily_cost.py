@@ -13,3 +13,4 @@ class SupervisorDailyCost(SupervisorScheduledWake):
         max_input_tokens_per_turn, max_output_tokens_per_turn,
     )
     story_start_at = datetime(2026, 11, 3, 23, 45, tzinfo=timezone.utc).timestamp()
+    owner_route = "/journal/supervisor/costs"
