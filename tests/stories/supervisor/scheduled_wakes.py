@@ -51,6 +51,13 @@ def test_a_scheduled_wake_waits_for_the_grant_fifteen_minute_interval(story):
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_changed_thirty_minute_interval_controls_the_next_scheduled_wake(story):
     expect_grant_covers_plan(story)
+    control = story.user_opens_in(
+        story.fixture.supervisor_owner_environment,
+        "/journal/supervisor/control",
+    )
+    control.expect_viewer_passed()
+    control.expect_viewer_part(("grant", "wake_interval_minutes"), 15)
+
     changed = change_interval(story, 1, 30)
     changed.expect_viewer_passed()
     changed.expect_viewer_part(("grant_version",), 2)
