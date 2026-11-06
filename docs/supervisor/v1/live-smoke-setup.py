@@ -310,8 +310,8 @@ def run_case_checks(check_id, seed):
     marker = case_check_marker(seed["case_id"]) if seed["checks"]["condition"] == "latest_run_passed" else None
     if marker:
         marker.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        directory = marker.parent.stat(follow_symlinks=False)
-        if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.geteuid()
+        directory = os.stat(marker.parent, follow_symlinks=False)
+        if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.getuid()
                 or stat.S_IMODE(directory.st_mode) & 0o077):
             raise SetupFailure("the staged check-state directory must be private to the writer")
         marker.unlink(missing_ok=True)
