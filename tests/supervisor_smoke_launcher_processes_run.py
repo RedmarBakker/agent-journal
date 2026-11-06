@@ -688,7 +688,7 @@ def test_launcher_refuses_to_start_services_without_the_persistent_codex_device_
     result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
 
     assert result.returncode != 0
-    assert "device login" in result.stdout.decode()
+    assert b"supervisor smoke refused at check: staged Codex device login" in result.stdout + result.stderr
     calls = (home / "docker-calls").read_text().splitlines()
     assert len(calls) == 1
     assert "supervisor-codex-ready" in calls[0]
