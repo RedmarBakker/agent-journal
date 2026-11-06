@@ -14,7 +14,6 @@ import ResourcesPage from "./pages/ResourcesPage.vue";
 import SearchPage from "./pages/SearchPage.vue";
 import SecretsPage from "./pages/SecretsPage.vue";
 import TeamPage from "./pages/TeamPage.vue";
-import Control from "./pages/Control.vue";
 import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
@@ -39,7 +38,6 @@ defineProps({page: {type: String, required: true}});
         <template #chat><Home /></template>
         <template #settings><SettingsPage /></template>
         <template #supervisor><SupervisorPage /></template>
-        <template #control><Control /></template>
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
         <template #files><FilesPage /></template>

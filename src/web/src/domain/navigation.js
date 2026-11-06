@@ -23,7 +23,6 @@ export const PAGES = {
         {key: "cost", title: "Cost"},
     ]},
     settings: {title: "Settings", icon: "settings", text: "Features, notifications and how the viewer behaves", children: TABS.map(({key, title}) => ({key, title}))},
-    control: {title: "Control", icon: "settings", text: "The owner's decisions for the supervisor"},
 };
 
 export const RESOURCE_GROUPS = [
