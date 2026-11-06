@@ -368,7 +368,7 @@ static int valid_profile(const char *config_path) {
         "\"max_turns_per_day\": 1",
         "\"max_input_tokens_per_turn\": 80000",
         "\"max_output_tokens_per_turn\": 8000",
-        "\"max_provider_requests_per_turn\": 8",
+        "\"max_provider_requests_per_turn\": 12",
         "\"mode\": \"bounded_write\"",
         "def ensure_smoke_task(",
         "command(\"check\", \"run\", str(check_id), expected_code=1)",
@@ -464,6 +464,7 @@ static int valid_profile(const char *config_path) {
 }
 
 typedef enum { VERIFIED_SMOKE, EVALUATION_CASE } SmokeMode;
+enum { SMOKE_PROVIDER_CAP = -2 };
 
 static long provider_request_count(const char *compact) {
     char *requests = strstr(compact, "\"provider_requests\":");
@@ -483,6 +484,19 @@ static bool receipt_complete(const char *path) {
         && provider_request_count(compact) > 0;
     free(compact);
     return complete;
+}
+
+static bool provider_capped_without_receipt(const char *path) {
+    char *state = NULL;
+    if (read_file(path, &state, 131072) != 0) return false;
+    char *compact = compact_json(state);
+    free(state);
+    if (!compact) return false;
+    bool capped = strstr(compact, "\"status\":\"capped\"")
+        && strstr(compact, "\"receipt\":null")
+        && provider_request_count(compact) > 0;
+    free(compact);
+    return capped;
 }
 
 static bool case_result_complete(const char *path) {
@@ -691,6 +705,9 @@ static int wait_for_smoke(pid_t child, struct timespec deadline, const char *rec
         clock_gettime(CLOCK_MONOTONIC, &now);
         if (deadline_passed(deadline, now)) break;
         if (receipt_path && smoke_complete(receipt_path, mode)) return stop_child(child, 0);
+        if (receipt_path && provider_capped_without_receipt(receipt_path)) {
+            return stop_child(child, SMOKE_PROVIDER_CAP);
+        }
         pid_t result = waitpid(child, &status, WNOHANG);
         if (result == child) {
             if (!WIFEXITED(status)) return 128;
@@ -846,6 +863,10 @@ int main(int argc, char **argv) {
     int cleanup = compose(COMPOSE_DOWN, directory, gateway_state, STOP_SECONDS + 5, mode);
     if (mode == EVALUATION_CASE) remove_case_wake(gateway_state);
     remove_secrets(directory);
+    if (result == SMOKE_PROVIDER_CAP) {
+        puts("supervisor smoke stopped: provider metering was capped before a receipt");
+        return cleanup == 0 ? 3 : cleanup;
+    }
     if (result == 0 && cleanup == 0) {
         puts(mode == EVALUATION_CASE ? "supervisor case stopped after one wake result" : "supervisor smoke stopped after one verified receipt");
         return 0;

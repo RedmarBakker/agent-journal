@@ -105,7 +105,14 @@ int main(int argc, char **argv) {
         snprintf(path, sizeof(path), "%s/journal-supervisor-transport/bridge-state.json", gateway_state);
         FILE *state = fopen(path, "w");
         if (!state) return 18;
-        if (strcmp(wake_kind, "quiet\n") == 0)
+        snprintf(path, sizeof(path), "%s/provider-capped", home);
+        if (access(path, F_OK) == 0)
+            fputs(
+                "{\"last_admission\":\"verified\",\"usage_settlement\":\"reserved\","
+                "\"receipt\":null,\"metering\":{\"status\":\"capped\",\"provider_requests\":12}}",
+                state
+            );
+        else if (strcmp(wake_kind, "quiet\n") == 0)
             fputs("{\"last_admission\":\"quiet\",\"active_run\":null,\"receipt\":null,\"hook_attempts\":0,\"metering\":{\"provider_requests\":0}}", state);
         else
             fputs("{\"last_admission\":\"verified\",\"usage_settlement\":\"settled\",\"receipt\":{\"action_id\":\"action-1\",\"status\":\"applied\",\"verification\":\"verified\"},\"metering\":{\"provider_requests\":1}}", state);
@@ -478,6 +485,28 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
     assert "down --timeout 3 --remove-orphans" in calls[-1]
     assert not Path((home / "secret-path").read_text()).exists()
     assert "#define SMOKE_RUN_SECONDS 300" in SOURCE.read_text()
+
+
+def test_launcher_stops_early_when_provider_metering_is_capped_without_a_receipt(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    (home / "provider-capped").touch()
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode == 3
+    assert b"provider metering was capped before a receipt" in result.stdout
+    calls = (home / "docker-calls").read_text().splitlines()
+    up_calls = [call for call in calls if " up " in f" {call} "]
+    assert len(up_calls) == 1
+    assert (
+        "--no-build --pull never --abort-on-container-exit --exit-code-from gateway writer gateway"
+        in up_calls[0]
+    )
+    assert "down --timeout 3 --remove-orphans" in calls[-1]
+    assert not (secrets / "supervisor_anthropic_api_key").exists()
+    assert not Path((home / "secret-path").read_text()).exists()
 
 
 def test_launcher_counts_reconcile_time_against_the_smoke_deadline(compiled_launcher, tmp_path):

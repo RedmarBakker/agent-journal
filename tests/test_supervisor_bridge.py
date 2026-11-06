@@ -1374,6 +1374,28 @@ def test_eight_provider_requests_cover_four_counted_model_responses(tmp_path):
     ] * 4
 
 
+def test_twelve_provider_requests_leave_room_for_four_reads_and_an_action_response(tmp_path):
+    state = metered_state(tmp_path, max_input=20, max_output=20, max_requests=12)
+    provider = StubProvider([
+        response
+        for _ in range(5)
+        for response in (provider_input_tokens(2), provider_response(2, 1))
+    ])
+    proxy = MeteringProxy(state, provider)
+
+    for _ in range(4):
+        assert proxy.forward(model_request()).status == 200
+    action_response = proxy.forward(model_request())
+
+    usage = state.snapshot()["metering"]
+    assert action_response.status == 200
+    assert usage["provider_requests"] == 10
+    assert usage["status"] == "known"
+    assert [path for path, _payload, _accept in provider.requests] == [
+        "/v1/messages/count_tokens", "/v1/messages",
+    ] * 5
+
+
 @pytest.mark.parametrize("missing", [
     "input_tokens",
     "output_tokens",

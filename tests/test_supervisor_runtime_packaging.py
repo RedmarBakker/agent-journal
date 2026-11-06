@@ -534,7 +534,7 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert '"/_supervisor/v1/enrollment"' in setup
     assert '"max_input_tokens_per_turn": 80000' in setup
     assert '"max_output_tokens_per_turn": 8000' in setup
-    assert '"max_provider_requests_per_turn": 8' in setup
+    assert '"max_provider_requests_per_turn": 12' in setup
     assert '"max_turns_per_day": 1' in setup
     assert '"max_cost_microusd_per_day": 1000000' in setup
     contract = read_json(PROFILE / "contract.schema.json")
