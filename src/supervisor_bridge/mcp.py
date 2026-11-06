@@ -12,7 +12,7 @@ from supervisor_bridge.contracts import (
     ContractError,
     tool_input_schemas,
 )
-from supervisor_bridge.transport import AuthorizationError, RetryableTransportError, ServiceRefusal
+from supervisor_bridge.transport import AuthorizationError, ReceiptNotFound, RetryableTransportError, ServiceRefusal
 
 
 PROTOCOL_VERSIONS = frozenset({"2024-11-05", "2025-03-26", "2025-06-18"})
@@ -23,7 +23,11 @@ TOOL_DESCRIPTIONS = {
         "Read the admitted journal snapshot and bounded observation page. "
         "Omit cursor on the first read; use next_cursor to continue."
     ),
-    RUN_OR_PROPOSE_TOOL: "Run or propose one catalogue command under the admitted journal grant.",
+    RUN_OR_PROPOSE_TOOL: (
+        "Run or propose one catalogue command under the admitted journal grant. Match area, noun, and verb; put only "
+        "that command's listed fields in arguments and omit kind. The grant chooses apply or propose. If rejected, "
+        "correct the named fields and reason once, then read the receipt."
+    ),
     RECEIPT_TOOL: "Read the canonical journal receipt for the admitted action.",
     **{
         name: (
@@ -81,10 +85,21 @@ class McpServer:
 
     def tool_list(self, request_id: object) -> dict:
         tools = [
-            {"name": name, "description": TOOL_DESCRIPTIONS[name], "inputSchema": self.schemas[name]}
+            {
+                "name": name,
+                "description": self.description(name),
+                "inputSchema": self.schemas[name],
+            }
             for name in TOOL_NAMES
         ]
         return {"jsonrpc": "2.0", "id": request_id, "result": {"tools": tools}}
+
+    def description(self, name: str) -> str:
+        description = TOOL_DESCRIPTIONS[name]
+        if name == RUN_OR_PROPOSE_TOOL:
+            fields = self.schemas[name]["properties"]["arguments"]["description"]
+            return f"{description} {fields}"
+        return description
 
     def tool_call(self, request_id: object, params: object) -> dict:
         if not isinstance(params, dict) or set(params) != {"name", "arguments"}:
@@ -114,6 +129,8 @@ class McpServer:
             }
         except (AuthorizationError, ServiceRefusal) as error:
             return self.tool_failure(request_id, "refused", error.cause)
+        except ReceiptNotFound:
+            return self.tool_failure(request_id, "pending", "the current run has no receipt yet")
         except RetryableTransportError as error:
             return self.tool_failure(request_id, "unavailable", error.cause)
         except ContractError as error:

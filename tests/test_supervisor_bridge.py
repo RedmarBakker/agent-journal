@@ -1,6 +1,5 @@
 import hashlib
 import importlib.util
-import hashlib
 import json
 from io import BytesIO
 from pathlib import Path
@@ -68,6 +67,7 @@ from supervisor_bridge.transport import (
     HookAcknowledgement,
     JsonHttpConnection,
     OpenClawHookClient,
+    ReceiptNotFound,
     RetryableTransportError,
     ServiceRefusal,
     SupervisorHttpClient,
@@ -886,6 +886,92 @@ def test_catalogue_read_tool_returns_the_fenced_observation(tmp_path):
     assert [call[0] for call in journal.calls] == ["observe"]
 
 
+def test_run_or_propose_schema_and_description_name_fields_by_catalogue_verb(tmp_path):
+    server = McpServer(SupervisorBridge(StubJournal(), StateStore(tmp_path)))
+    listed = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    tool = next(item for item in listed["result"]["tools"] if item["name"] == RUN_OR_PROPOSE_TOOL)
+    schema = tool["inputSchema"]
+    arguments = schema["properties"]["arguments"]
+    command_fields = (
+        "Plans and tasks / plan / priorities: plan_id, text",
+        "Plans and tasks / plan / tell: plan_id, text",
+        "Plans and tasks / task / create: evidence_ids, phase_id, plan_id, template_id, template_revision",
+        "Checks / check / edit: check_id, interval_minutes",
+    )
+
+    assert "oneOf" not in schema
+    assert schema["properties"]["area"]["enum"] == ["Checks", "Plans and tasks"]
+    assert schema["properties"]["noun"]["enum"] == ["check", "plan", "task"]
+    assert schema["properties"]["verb"]["enum"] == ["create", "edit", "priorities", "tell"]
+    assert set(arguments["properties"]) == {
+        "plan_id", "text", "phase_id", "template_id", "template_revision", "evidence_ids",
+        "check_id", "interval_minutes",
+    }
+    assert "kind" not in arguments["properties"]
+    assert arguments["additionalProperties"] is False
+    assert all(item in arguments["description"] for item in command_fields)
+    assert "omit the operation kind" in tool["description"]
+    assert all(item in tool["description"] for item in command_fields)
+
+
+@pytest.mark.parametrize(("command_arguments", "expected_error"), [
+    (
+        {"kind": "plan_priorities", "plan_id": 1, "text": "Review the failed check."},
+        "arguments.kind is unsupported",
+    ),
+    (
+        {"phase_id": 1},
+        "Plans and tasks / plan / priorities arguments has missing fields: "
+        "plan_id, text; unsupported fields: phase_id",
+    ),
+    (
+        {"plan_id": "one", "text": "Review the failed check."},
+        "arguments.plan_id must be a positive integer",
+    ),
+])
+def test_run_or_propose_rejection_names_fields_and_reason(tmp_path, command_arguments, expected_error):
+    journal = StubJournal()
+    state = metered_state_with_usage(tmp_path)
+    server = McpServer(SupervisorBridge(journal, state))
+    arguments = action_arguments()
+    arguments["arguments"] = command_arguments
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": arguments},
+    })
+
+    assert result["result"]["isError"] is True
+    assert expected_error in result["result"]["content"][0]["text"]
+    assert journal.calls == []
+
+
+def test_receipt_tool_reports_a_pending_receipt_without_claiming_service_failure(tmp_path):
+    journal = StubJournal()
+
+    def receipt_not_found(action_id):
+        journal.calls.append(("receipt", action_id))
+        raise ReceiptNotFound("canonical receipt is not available yet")
+
+    journal.receipt = receipt_not_found
+    state = StateStore(tmp_path)
+    state.record_admitted(RunReference.from_run(RUN))
+    server = McpServer(SupervisorBridge(journal, state))
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RECEIPT_TOOL, "arguments": {"run_ref": RUN_REF}},
+    })
+
+    message = result["result"]["content"][0]["text"]
+    assert result["result"]["isError"] is True
+    assert "the current run has no receipt yet" in message
+    assert "service is unavailable" not in message
+    assert state.snapshot()["health"] == "up"
+    assert state.snapshot()["last_error"] == "receipt_pending"
+    assert [call[0] for call in journal.calls] == ["receipt"]
+
+
 def test_observation_contains_five_matching_feedback_examples_as_data(app, monkeypatch):
     from datetime import timedelta
 
@@ -1126,7 +1212,9 @@ def test_run_or_propose_returns_journal_selected_proposal(tmp_path):
     })
 
     assert result["result"]["isError"] is False
-    assert json.loads(result["result"]["content"][0]["text"])["status"] == "proposed"
+    receipt = json.loads(result["result"]["content"][0]["text"])
+    assert receipt["status"] == "proposed"
+    assert receipt["verification"] == "not_applied"
     assert "mode" not in server.schemas[RUN_OR_PROPOSE_TOOL]["properties"]
     assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
 

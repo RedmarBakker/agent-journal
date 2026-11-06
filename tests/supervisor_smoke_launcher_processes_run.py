@@ -105,11 +105,20 @@ int main(int argc, char **argv) {
         snprintf(path, sizeof(path), "%s/journal-supervisor-transport/bridge-state.json", gateway_state);
         FILE *state = fopen(path, "w");
         if (!state) return 18;
+        snprintf(path, sizeof(path), "%s/proposal-result", home);
+        int has_proposal_result = access(path, F_OK) == 0;
         snprintf(path, sizeof(path), "%s/provider-capped", home);
         if (access(path, F_OK) == 0)
             fputs(
                 "{\"last_admission\":\"verified\",\"usage_settlement\":\"reserved\","
                 "\"receipt\":null,\"metering\":{\"status\":\"capped\",\"provider_requests\":12}}",
+                state
+            );
+        else if (has_proposal_result)
+            fputs(
+                "{\"last_admission\":\"admitted\",\"usage_settlement\":\"settled\","
+                "\"receipt\":{\"action_id\":\"action-1\",\"status\":\"proposed\",\"verification\":\"not_applied\"},"
+                "\"metering\":{\"provider_requests\":1}}",
                 state
             );
         else if (strcmp(wake_kind, "quiet\n") == 0)
@@ -499,6 +508,24 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert "staged-" not in " ".join(calls)
     assert "--message" not in " ".join(calls) and "--session" not in " ".join(calls)
     assert all(argument != "--env" for call in calls for argument in call.split())
+
+
+def test_launcher_accepts_a_recorded_proposal_as_a_valid_smoke_result(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    (home / "proposal-result").touch()
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode == 0, result.stderr
+    assert b"recorded receipt" in result.stdout
+    state = json.loads((tmp_path / "gateway-state/journal-supervisor-transport/bridge-state.json").read_text())
+    assert state["last_admission"] == "admitted"
+    assert state["usage_settlement"] == "settled"
+    assert state["receipt"]["status"] == "proposed"
+    assert state["receipt"]["verification"] == "not_applied"
+    assert "down --timeout 3 --remove-orphans" in (home / "docker-calls").read_text()
 
 
 def test_launcher_finishes_a_staged_quiet_case_after_one_no_provider_admission(compiled_launcher, tmp_path):

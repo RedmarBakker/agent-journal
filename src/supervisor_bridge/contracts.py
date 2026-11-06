@@ -149,8 +149,15 @@ class RunReference:
 def strict_object(value: object, required: frozenset[str], allowed: frozenset[str], name: str) -> dict:
     if not isinstance(value, dict):
         raise ContractError(f"{name} must be an object")
-    if set(value) != allowed or not required.issubset(value):
-        raise ContractError(f"{name} has missing or unsupported fields")
+    missing = sorted(required - value.keys())
+    unsupported = sorted(value.keys() - allowed)
+    if missing or unsupported:
+        details = []
+        if missing:
+            details.append(f"missing fields: {', '.join(missing)}")
+        if unsupported:
+            details.append(f"unsupported fields: {', '.join(unsupported)}")
+        raise ContractError(f"{name} has {'; '.join(details)}")
     return value
 
 
@@ -192,17 +199,23 @@ def action_request(reference: RunReference, arguments: object) -> dict:
     noun = bounded_text(values["noun"], "noun", 1, 128)
     verb = bounded_text(values["verb"], "verb", 1, 128)
     command = (area, noun, verb)
+    command_name = f"{area} / {noun} / {verb}"
     capability = CAPABILITY_CATALOGUE.get(area, {}).get(noun, {}).get(verb)
     if capability not in WRITE_TIERS:
-        raise ContractError("command verb is not enabled")
+        raise ContractError(f"catalogue verb {command_name!r} is not enabled")
     operation_kind = RUN_COMMANDS.get(command)
     if operation_kind is None:
-        raise ContractError("command verb is not enabled")
+        raise ContractError(f"catalogue verb {command_name!r} is not enabled")
     command_arguments = values["arguments"]
-    if not isinstance(command_arguments, dict) or "kind" in command_arguments:
-        raise ContractError("command arguments do not match the selected verb")
+    if not isinstance(command_arguments, dict):
+        raise ContractError(f"{command_name} arguments must be an object")
+    if "kind" in command_arguments:
+        raise ContractError(
+            f"{command_name} arguments.kind is unsupported; "
+            "the selected verb determines the operation kind"
+        )
     operation = {"kind": operation_kind, **command_arguments}
-    validate_operation(operation)
+    validate_operation(operation, command_name)
     rationale = bounded_text(values["rationale"], "rationale", 1, 2048)
     if not isinstance(observations, list) or not 1 <= len(observations) <= 20:
         raise ContractError("observation_ids must contain 1 to 20 references")
@@ -242,7 +255,7 @@ def action_request(reference: RunReference, arguments: object) -> dict:
     }
 
 
-def validate_operation(value: object) -> None:
+def validate_operation(value: object, command_name: str = "operation") -> None:
     if not isinstance(value, dict) or not isinstance(value.get("kind"), str):
         raise ContractError("operation must be a typed object")
     kind = value["kind"]
@@ -255,25 +268,25 @@ def validate_operation(value: object) -> None:
     fields = schemas.get(kind)
     if fields is None:
         raise ContractError("operation kind is not enabled")
-    strict_object(value, fields, fields, "operation")
+    strict_object(value, fields, fields, f"{command_name} arguments")
     if kind in {"plan_priorities", "plan_tell"}:
-        positive_integer(value["plan_id"], "plan_id")
-        bounded_text(value["text"], "command text", 1, 2048)
+        positive_integer(value["plan_id"], "arguments.plan_id")
+        bounded_text(value["text"], "arguments.text", 1, 2048)
     elif kind == "diagnostic_task":
-        positive_integer(value["plan_id"], "plan_id")
-        positive_integer(value["phase_id"], "phase_id")
-        bounded_text(value["template_id"], "template_id", 1, 256)
-        bounded_text(value["template_revision"], "template_revision", 1, 256)
+        positive_integer(value["plan_id"], "arguments.plan_id")
+        positive_integer(value["phase_id"], "arguments.phase_id")
+        bounded_text(value["template_id"], "arguments.template_id", 1, 256)
+        bounded_text(value["template_revision"], "arguments.template_revision", 1, 256)
         evidence_ids = value["evidence_ids"]
         if not isinstance(evidence_ids, list) or not 1 <= len(evidence_ids) <= 20:
-            raise ContractError("evidence_ids must contain 1 to 20 references")
+            raise ContractError("arguments.evidence_ids must contain 1 to 20 references")
         for evidence_id in evidence_ids:
-            bounded_text(evidence_id, "evidence_id", 1, 256)
+            bounded_text(evidence_id, "arguments.evidence_ids item", 1, 256)
     else:
-        positive_integer(value["check_id"], "check_id")
+        positive_integer(value["check_id"], "arguments.check_id")
         interval = value["interval_minutes"]
         if type(interval) is not int or not 5 <= interval <= 30:
-            raise ContractError("interval_minutes must be between 5 and 30")
+            raise ContractError("arguments.interval_minutes must be between 5 and 30")
 
 
 def load_contract_schema() -> dict:
@@ -336,36 +349,45 @@ def tool_input_schemas(schema: dict | None = None) -> dict[str, dict]:
             "required": required,
             "additionalProperties": False,
         }
-    command_choices = [
-        {
-            "properties": {
-                "area": {"const": area},
-                "noun": {"const": noun},
-                "verb": {"const": verb},
-                "arguments": arguments_by_kind[kind],
-            },
-            "required": ["area", "noun", "verb", "arguments"],
-        }
-        for command, kind in RUN_COMMANDS.items()
-        for area, noun, verb in (command,)
-    ]
+    argument_properties = {}
+    argument_commands = {}
+    command_fields = []
+    for command, kind in RUN_COMMANDS.items():
+        label = " / ".join(command)
+        arguments = arguments_by_kind[kind]
+        command_fields.append(f"{label}: {', '.join(sorted(arguments['required']))}")
+        for name, property_schema in arguments["properties"].items():
+            argument_properties.setdefault(name, copy.deepcopy(property_schema))
+            argument_commands.setdefault(name, []).append(label)
+    for name, property_schema in argument_properties.items():
+        uses = ", ".join(argument_commands[name])
+        previous = property_schema.get("description", "").strip()
+        property_schema["description"] = f"{previous} Used by: {uses}.".strip()
+    arguments_schema = {
+        "type": "object",
+        "properties": {name: argument_properties[name] for name in sorted(argument_properties)},
+        "additionalProperties": False,
+        "description": (
+            "Required fields by area, noun, and verb: " + "; ".join(command_fields)
+            + ". Omit the operation kind."
+        ),
+    }
     schemas[RUN_OR_PROPOSE_TOOL] = {
         "type": "object",
         "properties": {
             "run_ref": run_ref,
             "observation_ids": inline_schema(action_properties["observation_ids"], definitions),
             "expected_revisions": inline_schema(action_properties["expected_revisions"], definitions),
-            "area": {"type": "string"},
-            "noun": {"type": "string"},
-            "verb": {"type": "string"},
-            "arguments": {"type": "object"},
+            "area": {"type": "string", "enum": sorted({command[0] for command in RUN_COMMANDS})},
+            "noun": {"type": "string", "enum": sorted({command[1] for command in RUN_COMMANDS})},
+            "verb": {"type": "string", "enum": sorted({command[2] for command in RUN_COMMANDS})},
+            "arguments": arguments_schema,
             "rationale": inline_schema(action_properties["rationale"], definitions),
         },
         "required": [
             "run_ref", "observation_ids", "expected_revisions", "area", "noun", "verb", "arguments", "rationale",
         ],
         "additionalProperties": False,
-        "oneOf": command_choices,
     }
     schemas[RECEIPT_TOOL] = {
         "type": "object",

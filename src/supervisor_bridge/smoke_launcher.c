@@ -166,6 +166,15 @@ static const char *json_object_end(const char *value) {
     return NULL;
 }
 
+static bool contains_text(const char *start, const char *end, const char *text) {
+    size_t length = strlen(text);
+    for (const char *cursor = start; cursor < end; cursor++) {
+        if ((size_t)(end - cursor) < length) break;
+        if (memcmp(cursor, text, length) == 0) return true;
+    }
+    return false;
+}
+
 static bool only_journal_mcp_server(const char *json) {
     const char *servers = strstr(json, "\"servers\":{");
     if (!servers) return false;
@@ -492,10 +501,19 @@ static bool receipt_complete(const char *path) {
     char *compact = compact_json(state);
     free(state);
     if (!compact) return false;
-    bool complete = strstr(compact, "\"last_admission\":\"verified\"")
+    const char *receipt_field = strstr(compact, "\"receipt\":");
+    const char *receipt = receipt_field ? receipt_field + strlen("\"receipt\":") : NULL;
+    const char *receipt_end = receipt ? json_object_end(receipt) : NULL;
+    bool applied = receipt_end
+        && contains_text(receipt, receipt_end, "\"status\":\"applied\"")
+        && contains_text(receipt, receipt_end, "\"verification\":\"verified\"")
+        && strstr(compact, "\"last_admission\":\"verified\"");
+    bool proposed = receipt_end
+        && contains_text(receipt, receipt_end, "\"status\":\"proposed\"")
+        && contains_text(receipt, receipt_end, "\"verification\":\"not_applied\"")
+        && strstr(compact, "\"last_admission\":\"admitted\"");
+    bool complete = (applied || proposed)
         && strstr(compact, "\"usage_settlement\":\"settled\"")
-        && strstr(compact, "\"status\":\"applied\"")
-        && strstr(compact, "\"verification\":\"verified\"")
         && provider_request_count(compact) > 0;
     free(compact);
     return complete;
@@ -908,8 +926,8 @@ int main(int argc, char **argv) {
         return 3;
     }
     if (result == 0 && cleanup == 0) {
-        puts(mode == EVALUATION_CASE ? "supervisor case stopped after one wake result" : "supervisor smoke stopped after one verified receipt");
+        puts(mode == EVALUATION_CASE ? "supervisor case stopped after one wake result" : "supervisor smoke stopped after one recorded receipt");
         return 0;
     }
-    return refuse_check("verified smoke result and cleanup", result ? result : cleanup);
+    return refuse_check("recorded smoke result and cleanup", result ? result : cleanup);
 }
