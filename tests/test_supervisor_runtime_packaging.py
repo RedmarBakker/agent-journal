@@ -562,6 +562,30 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "uid/gid 10003" in runbook and "B10 remains false" in runbook
 
 
+def test_live_provider_request_cap_is_persisted_in_the_owner_grant():
+    setup = (PROFILE / "live-smoke-setup.py").read_text()
+    bridge_environment = (PROFILE / "journal-supervisor-bridge-environment.sh").read_text()
+    bridge = (ROOT / "src" / "supervisor_bridge" / "bridge.py").read_text()
+    bridge_state = (ROOT / "src" / "supervisor_bridge" / "state.py").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+    report = (PROFILE / "STAGING-REPORT.md").read_text()
+
+    assert '"max_provider_requests_per_turn": 12' in setup
+    assert setup.count('"limits": GRANT_LIMITS') == 2
+    assert "authority.has_enrollment_grant()" in setup
+    assert 'grant_token_limits(observed["snapshot"], run)' in bridge
+    assert 'state["provider_requests"] + count <= state["limits"]["max_provider_requests_per_turn"]' in bridge_state
+    assert "JOURNAL_SUPERVISOR_ADMISSION_URL" in bridge_environment
+    assert "max_provider_requests_per_turn" not in bridge_environment
+    assert "12 request, one-turn" in runbook
+    assert "existing 8-request grant stays at 8" in runbook
+    assert "no Gateway or launcher rebuild fixes an old persisted grant" in runbook
+    assert "12 requests" in report
+    assert "journal__journal_supervisor-observe" in report
+    assert "journal__journal_supervisor-run_or_propose" in report
+    assert "no tool arguments were inspected" in report
+
+
 def test_plan_driver_socket_uses_a_server_and_driver_only_group():
     manifest = read_json(PROFILE / "manifest.json")
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
