@@ -40,7 +40,7 @@ const fullCosts = {
 };
 
 const emptyCosts = {
-    status: "never_set_up",
+    status: "on",
     daily_cost_cap_microusd: null,
     wake_interval_minutes: null,
     periods: Object.fromEntries(["today", "week", "month"].map((key) => [key, {
@@ -199,11 +199,12 @@ test("an empty cost history says no cost has been recorded", async () => {
     const page = await openPage();
 
     expect(page.textContent).toContain("No cost recorded.");
+    expect(page.querySelector("[data-supervisor-not-set-up]")).toBeNull();
     expect(page.querySelectorAll("[data-trend-day]")).toHaveLength(0);
 });
 
 test("a never set up supervisor offers the owner a plan to start setup", async () => {
-    api.supervisorCosts.mockResolvedValue(emptyCosts);
+    api.supervisorCosts.mockResolvedValue({...emptyCosts, status: "never_set_up"});
     api.supervisorControl.mockResolvedValue({status: "never_set_up", grant: null});
     const page = await openPage();
 

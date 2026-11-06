@@ -160,6 +160,14 @@ test("a never set up supervisor offers the owner a plan to start setup", async (
     expect(page.querySelectorAll("[data-history-row]")).toHaveLength(0);
 });
 
+test("an empty history for a set-up supervisor says there are no decisions yet", async () => {
+    api.supervisorHistory.mockResolvedValue(response("on", []));
+    const page = await openPage();
+
+    expect(page.textContent).toContain("No decisions yet.");
+    expect(page.querySelector("[data-supervisor-setup]")).toBeNull();
+});
+
 test("history remains readable while the supervisor is off", async () => {
     api.supervisorHistory.mockResolvedValue(response("off", [row(82, {actions: [action(2, {undo_available: false})]})]));
     const page = await openPage();

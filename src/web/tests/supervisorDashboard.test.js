@@ -98,6 +98,19 @@ test("a never set up Supervisor shows the document 13 empty message without inve
     expect(page.querySelector('[data-action="applied"]')).toBeNull();
 });
 
+test("a set-up Supervisor with no activity does not offer setup", async () => {
+    api.supervisorRecords.mockResolvedValue(records(
+        "on",
+        summary(0, {applied: 0, conflicted: 0, proposed: 0, rejected: 0}, 0),
+        summary(0, {applied: 0, conflicted: 0, proposed: 0, rejected: 0}, 0),
+    ));
+    const page = await openPage();
+
+    expect(page.querySelector('[data-summary-status] .summary-value').textContent).toBe("Supervisor on");
+    expect(page.querySelector("[data-supervisor-setup]")).toBeNull();
+    expect(page.querySelector('[data-action="applied"] .stat-value').textContent).toBe("0");
+});
+
 test("an off Supervisor keeps past action figures and labels them as past", async () => {
     api.supervisorRecords.mockResolvedValue(records(
         "off",
