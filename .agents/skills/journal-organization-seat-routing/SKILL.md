@@ -5,7 +5,7 @@ description: Route organization work; load it when a plan names an organization,
 
 # Organization seat routing
 
-Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. Use Edit or Write for file changes only when this seat is allowed to write. Read work sent to your seat with `journal organization inbox`. Use `journal organization handoff <task> <target>` only when your seat is responsible for passing work onward. Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, or another shell command. If needed, check this journal's health with `curl -s http://127.0.0.1:$JOURNAL_PORT/journal/health` as a separate command. Do not use curl for another URL. This is the only route between seats; do not use `rig send` or `rig queue`.
+Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. Use Edit or Write for file changes only when this seat is allowed to write. Read work sent to your seat with `journal organization inbox`. Use `journal organization handoff <task> <target>` only when your seat is responsible for passing work onward. Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, or another shell command. If needed, check this journal's health with `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$JOURNAL_PORT/journal/health` as a separate command. Do not use curl for another URL. This is the only route between seats; do not use `rig send` or `rig queue`.
 
 Use these targets:
 
