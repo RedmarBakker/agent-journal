@@ -32,8 +32,9 @@ def parse_args():
 def writer_rows(env_file: Path) -> list[dict]:
     result = subprocess.run(
         ["docker", "compose", "--project-name", "journal-supervisor-smoke", "--env-file", str(env_file),
-         "-f", str(COMPOSE), "--profile", "authorized-staging", "exec", "--user", "journal", "-T",
-         "writer", "/usr/local/bin/supervisor-proposal-writer-rows"],
+         "-f", str(COMPOSE), "--profile", "authorized-staging", "run", "--rm", "--no-deps",
+         "--network", "none", "--user", "journal", "--entrypoint",
+         "/usr/local/bin/supervisor-proposal-writer-rows", "writer"],
         check=True, capture_output=True, text=True,
     )
     payload = json.loads(result.stdout)
@@ -69,10 +70,10 @@ def main():
     args = parse_args()
     load_case(EVALUATION_PROFILE / "proposal-evaluation-cases.json", args.case_id)
     bridge_path = args.bridge_state or bridge_state_path(args.env_file)
-    bridge_state = json.loads(bridge_path.read_text(encoding="utf-8"))
+    bridge_state = json.loads(bridge_path.read_text(encoding="utf-8")) if bridge_path.is_file() else {}
     row = result_row(args.case_id, bridge_state, writer_rows(args.env_file))
     append_once(args.results, row)
-    print(f"appended raw result for {args.case_id}: {row['outcome']['action_status'] or row['outcome']['admission']}")
+    print(f"appended raw result for {args.case_id}: {row['outcome']['result']}")
 
 
 if __name__ == "__main__":

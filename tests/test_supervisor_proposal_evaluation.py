@@ -99,6 +99,7 @@ def test_result_row_reads_applied_receipt_verification_and_usage():
     assert row["outcome"]["event_kind"] == "failed_check"
     assert row["outcome"]["wake_result"] == "Acted"
     assert row["outcome"]["action_status"] == "applied"
+    assert row["outcome"]["result"] == "applied"
     assert row["outcome"]["verification"] == "verified"
     assert row["abstention"] is False
     assert row["failure"] == ""
@@ -116,6 +117,7 @@ def test_result_row_reads_owner_accept_and_decline_decisions():
 
     accepted = result_row("PSU-02", bridge_state, writer_rows)
     assert accepted["outcome"]["action_status"] == "proposed"
+    assert accepted["outcome"]["result"] == "proposed"
     assert accepted["outcome"]["proposal_status"] == "accepted"
     assert accepted["outcome"]["owner_decision"] == "accepted"
     assert accepted["abstention"] is False
@@ -130,6 +132,17 @@ def test_result_row_reads_owner_accept_and_decline_decisions():
     assert declined["outcome"]["owner_decision"] == "declined"
 
 
+def test_result_row_recovers_a_proposal_from_writer_rows_without_bridge_state():
+    writer_rows = json.loads((FIXTURES / "proposal-writer-rows.json").read_text())
+
+    row = result_row("PSU-02", {}, writer_rows)
+
+    assert row["outcome"]["result"] == "proposed"
+    assert row["outcome"]["action_status"] == "proposed"
+    assert row["outcome"]["owner_decision"] == "accepted"
+    assert row["raw"]["run"]["data"]["run_ref"] == "run-psu-02"
+
+
 def test_result_row_reads_quiet_wakeup_without_provider_or_receipt():
     wakeup_rows = json.loads((FIXTURES / "quiet-wakeup-rows.json").read_text())
 
@@ -138,6 +151,60 @@ def test_result_row_reads_quiet_wakeup_without_provider_or_receipt():
     assert row["outcome"]["wake_kind"] == "scheduled"
     assert row["outcome"]["wake_result"] == "Skipped as quiet"
     assert row["outcome"]["action_status"] == ""
+    assert row["outcome"]["result"] == "not_admitted"
     assert row["abstention"] is None
     assert row["actual_cost_usd"] is None
     assert row["latency_seconds"] is None
+
+
+def test_result_row_records_an_admitted_run_without_a_command_as_abstained():
+    writer_rows = [
+        {
+            "id": 40,
+            "entry_type": "SupervisorRun",
+            "created_at": "2026-11-06T12:00:00+00:00",
+            "data": {"run_ref": "run-abstained", "wakeup_id": "wakeup-abstained", "status": "admitted"},
+        },
+        {
+            "id": 41,
+            "entry_type": "SupervisorUsage",
+            "created_at": "2026-11-06T12:00:30+00:00",
+            "data": {"run_ref": "run-abstained", "status": "known", "provider_requests": 2},
+        },
+        {
+            "id": 42,
+            "entry_type": "SupervisorWakeup",
+            "created_at": "2026-11-06T12:00:30+00:00",
+            "data": {"wakeup_id": "wakeup-abstained", "kind": "event", "result": "Handed to you"},
+        },
+    ]
+
+    row = result_row("PSU-08", {}, writer_rows)
+
+    assert row["outcome"]["result"] == "abstained"
+    assert row["outcome"]["provider_requests"] == 2
+    assert row["abstention"] is True
+
+
+def test_result_row_records_a_bridge_refusal_without_an_action_receipt():
+    writer_rows = [
+        {
+            "id": 50,
+            "entry_type": "SupervisorRun",
+            "created_at": "2026-11-06T12:00:00+00:00",
+            "data": {"run_ref": "run-refused", "wakeup_id": "wakeup-refused", "status": "admitted"},
+        },
+        {
+            "id": 51,
+            "entry_type": "SupervisorUsage",
+            "created_at": "2026-11-06T12:00:20+00:00",
+            "data": {"run_ref": "run-refused", "status": "known", "provider_requests": 1},
+        },
+    ]
+    bridge_state = {"last_admission": "admitted", "last_error": "service_rejected: grant_revoked"}
+
+    row = result_row("PSU-21", bridge_state, writer_rows)
+
+    assert row["outcome"]["result"] == "refused"
+    assert row["outcome"]["action_status"] == ""
+    assert row["failure"] == "service_rejected: grant_revoked"

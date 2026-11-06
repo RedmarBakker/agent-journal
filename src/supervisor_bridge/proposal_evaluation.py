@@ -169,12 +169,22 @@ def result_row(case_id: str, bridge_state: dict[str, Any], writer_rows: list[dic
     metering = bridge_state.get("metering") or {}
     bridge_receipt = bridge_state.get("receipt") or {}
     run_ref = metering.get("run_ref") or {}
-    run_id = bridge_receipt.get("run_id") or run_ref.get("run_id")
+    latest_run = _latest_by_id(writer_rows, "SupervisorRun")
+    latest_run_data = (latest_run or {}).get("data", {})
+    run_id = bridge_receipt.get("run_id") or run_ref.get("run_id") or latest_run_data.get("run_ref")
     action_id = bridge_receipt.get("action_id") or run_ref.get("pending_action_id")
-    run = _latest(writer_rows, "SupervisorRun", "run_ref", run_id)
+    run = _latest(writer_rows, "SupervisorRun", "run_ref", run_id) if run_id else latest_run
     usage = _latest(writer_rows, "SupervisorUsage", "run_ref", run_id)
     action = _latest(writer_rows, "SupervisorActionReceipt", "action_id", action_id)
-    proposal = _latest(writer_rows, "SupervisorProposalReceipt", "action_receipt_id", action.get("id") if action else None)
+    if not action and run_id:
+        action = _latest(writer_rows, "SupervisorActionReceipt", "run_id", run_id)
+    proposal = _latest(writer_rows, "SupervisorProposalReceipt", "run_id", run_id)
+    if not proposal:
+        proposal = _latest(
+            writer_rows, "SupervisorProposalReceipt", "action_receipt_id", action.get("id") if action else None,
+        )
+    if not action and proposal:
+        action = _by_id(writer_rows, "SupervisorActionReceipt", proposal["data"].get("action_receipt_id"))
     decision = _latest(writer_rows, "SupervisorProposalDecision", "proposal_id", proposal.get("id") if proposal else None)
     run_state = _latest(writer_rows, "SupervisorRunState", "run_ref", run_id)
     wakeup_id = run.get("data", {}).get("wakeup_id") if run else None
@@ -192,7 +202,11 @@ def result_row(case_id: str, bridge_state: dict[str, Any], writer_rows: list[dic
     wake_data = wake_up.get("data", {}) if wake_up else {}
     verification_data = verification.get("data", {}) if verification else {}
     status = action_data.get("status", bridge_receipt.get("status", ""))
-    provider_requests = metering.get("provider_requests", bridge_receipt.get("provider_requests", 0))
+    provider_requests = metering.get("provider_requests")
+    if provider_requests is None:
+        provider_requests = bridge_receipt.get("provider_requests")
+    if provider_requests is None:
+        provider_requests = (usage or {}).get("data", {}).get("provider_requests", 0)
     failure = bridge_state.get("last_error", "")
     if not failure and status in {"rejected", "conflicted"}:
         failure = action_data.get("reason", bridge_receipt.get("reason", ""))
@@ -205,6 +219,7 @@ def result_row(case_id: str, bridge_state: dict[str, Any], writer_rows: list[dic
             "wake_kind": (run or {}).get("data", {}).get("wake_kind", wake_data.get("kind", "")),
             "event_kind": (run or {}).get("data", {}).get("event_kind", wake_data.get("event_kind", "")),
             "wake_result": wake_data.get("result", ""),
+            "result": _result_name(status, proposal, run_state, run, bridge_state.get("last_error", "")),
             "action_status": status,
             "proposal_status": decision_data.get("status", proposal_data.get("status", "")),
             "owner_decision": decision_data.get("status", ""),
@@ -233,6 +248,23 @@ def result_row(case_id: str, bridge_state: dict[str, Any], writer_rows: list[dic
     }
 
 
+def _result_name(status: str, proposal: dict[str, Any] | None, run_state: dict[str, Any] | None,
+                 run: dict[str, Any] | None, last_error: object) -> str:
+    if status == "applied":
+        return "applied"
+    if status == "proposed" or proposal:
+        return "proposed"
+    if (
+        status in {"rejected", "conflicted"}
+        or (run_state or {}).get("data", {}).get("status") in {"rejected", "conflicted"}
+        or isinstance(last_error, str) and last_error.startswith(("service_rejected", "service_unauthorized"))
+    ):
+        return "refused"
+    if run:
+        return "abstained"
+    return "not_admitted"
+
+
 def _catalogue_command(command: str) -> tuple[str, str, str]:
     noun, separator, verb = command.partition(" ")
     if not separator:
@@ -257,6 +289,10 @@ def _latest(rows: list[dict[str, Any]], entry_type: str, field: str, value: obje
 def _latest_by_id(rows: list[dict[str, Any]], entry_type: str) -> dict[str, Any] | None:
     matching = [row for row in rows if row.get("entry_type") == entry_type]
     return max(matching, key=lambda row: row.get("id", 0), default=None)
+
+
+def _by_id(rows: list[dict[str, Any]], entry_type: str, row_id: object) -> dict[str, Any] | None:
+    return next((row for row in rows if row.get("entry_type") == entry_type and row.get("id") == row_id), None)
 
 
 def _verification_report(rows: list[dict[str, Any]], receipt_id: object) -> dict[str, Any] | None:

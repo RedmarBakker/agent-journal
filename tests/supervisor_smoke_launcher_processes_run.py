@@ -510,22 +510,29 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert all(argument != "--env" for call in calls for argument in call.split())
 
 
-def test_launcher_accepts_a_recorded_proposal_as_a_valid_smoke_result(compiled_launcher, tmp_path):
+def test_launcher_keeps_case_proposal_state_after_cleanup(compiled_launcher, tmp_path):
     executable, docker_stub = compiled_launcher
     work, _secrets, home = staging_root(tmp_path)
+    gateway_state = tmp_path / "gateway-state"
+    wake = gateway_state / "journal-supervisor-case-wake"
+    wake.write_text("event:failed_check:PSU-02\n")
+    wake.chmod(0o444)
     (home / "proposal-result").touch()
     docker_path = fake_docker(tmp_path, home, docker_stub)
 
     result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
 
     assert result.returncode == 0, result.stderr
-    assert b"recorded receipt" in result.stdout
-    state = json.loads((tmp_path / "gateway-state/journal-supervisor-transport/bridge-state.json").read_text())
+    assert b"one wake result" in result.stdout
+    assert not wake.exists()
+    state = json.loads((gateway_state / "journal-supervisor-transport/bridge-state.json").read_text())
     assert state["last_admission"] == "admitted"
     assert state["usage_settlement"] == "settled"
     assert state["receipt"]["status"] == "proposed"
     assert state["receipt"]["verification"] == "not_applied"
-    assert "down --timeout 3 --remove-orphans" in (home / "docker-calls").read_text()
+    calls = (home / "docker-calls").read_text()
+    assert "down --timeout 3 --remove-orphans" in calls
+    assert "--volumes" not in calls and " -v " not in calls
 
 
 def test_launcher_finishes_a_staged_quiet_case_after_one_no_provider_admission(compiled_launcher, tmp_path):
