@@ -1,0 +1,23 @@
+{
+  "active_run": null,
+  "last_admission": "admitted",
+  "last_error": "",
+  "receipt": {
+    "action_id": "action-psu-02",
+    "run_id": "run-psu-02",
+    "status": "proposed",
+    "verification": "not_applied"
+  },
+  "metering": {
+    "run_ref": {
+      "run_id": "run-psu-02",
+      "pending_action_id": "action-psu-02",
+      "fence": 2
+    },
+    "input_tokens": 12000,
+    "output_tokens": 480,
+    "provider_requests": 2,
+    "provider_retries": 0,
+    "status": "settled"
+  }
+}

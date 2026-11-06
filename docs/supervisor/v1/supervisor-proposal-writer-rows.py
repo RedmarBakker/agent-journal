@@ -21,6 +21,9 @@ ENTRY_TYPES = (
     "SupervisorActionState",
     "SupervisorActionReceipt",
     "SupervisorActionReport",
+    "SupervisorProposalReceipt",
+    "SupervisorProposalDecision",
+    "SupervisorWakeup",
 )
 
 

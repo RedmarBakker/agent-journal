@@ -1,0 +1,63 @@
+[
+  {
+    "id": 20,
+    "entry_type": "SupervisorRun",
+    "created_at": "2026-11-02T11:00:00+00:00",
+    "data": {
+      "run_ref": "run-psu-02",
+      "wakeup_id": "wakeup-psu-02",
+      "status": "admitted",
+      "wake_kind": "event",
+      "event_kind": "failed_check"
+    }
+  },
+  {
+    "id": 21,
+    "entry_type": "SupervisorUsage",
+    "created_at": "2026-11-02T11:00:25+00:00",
+    "data": {"run_ref": "run-psu-02", "status": "known", "cost_usd": "0.042000"}
+  },
+  {
+    "id": 22,
+    "entry_type": "SupervisorActionReceipt",
+    "created_at": "2026-11-02T11:00:31+00:00",
+    "data": {
+      "action_id": "action-psu-02",
+      "status": "proposed",
+      "reason": "",
+      "proposed_operations": [{"kind": "diagnostic_task", "plan_id": 4}],
+      "command_receipts": []
+    }
+  },
+  {
+    "id": 23,
+    "entry_type": "SupervisorProposalReceipt",
+    "created_at": "2026-11-02T11:00:31+00:00",
+    "data": {
+      "action_receipt_id": 22,
+      "action_id": "action-psu-02",
+      "run_id": "run-psu-02",
+      "status": "open",
+      "proposed_operations": [{"kind": "diagnostic_task", "plan_id": 4}],
+      "commands": ["task create 'Diagnose the failed check' --plan 4"]
+    }
+  },
+  {
+    "id": 24,
+    "entry_type": "SupervisorProposalDecision",
+    "created_at": "2026-11-02T11:02:00+00:00",
+    "data": {"proposal_id": 23, "status": "accepted", "exit_code": 0, "output": "task 92 added to plan 4"}
+  },
+  {
+    "id": 25,
+    "entry_type": "SupervisorRunState",
+    "created_at": "2026-11-02T11:00:31+00:00",
+    "data": {"run_ref": "run-psu-02", "status": "complete"}
+  },
+  {
+    "id": 26,
+    "entry_type": "SupervisorWakeup",
+    "created_at": "2026-11-02T11:00:31+00:00",
+    "data": {"wakeup_id": "wakeup-psu-02", "kind": "event", "result": "Proposed", "event_kind": "failed_check"}
+  }
+]

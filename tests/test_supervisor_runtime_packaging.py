@@ -374,13 +374,20 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     assert all("/data/home" not in line for line in stage.splitlines() if "rm -rf" in line)
     assert "seed-project.sh" in stage and "setup-live-smoke.sh" in stage
     assert "cat > /run/journal-proposal-case-seed.json' < \"$SEED_DIR/case-seed.json\"" in stage
+    assert "docs/supervisor/v2/proposal-evaluation-cases.json" in stage
     assert "JOURNAL_SUPERVISOR_CASE_ID" in setup and "/usr/local/bin/supervisor-live-setup" in setup
     assert "load_seed(CASE_SEED_FILE, case_id)" in setup_program
+    assert "configure_v2_grant" in setup_program
+    assert '"watched_plans": settings["watched_plans"]' in setup_program
     assert "proposal-evaluation-cases-v1.json" not in dockerfile
     assert "proposal-evaluation-cases-v1.json" not in writer_build
     assert "journal-supervisor-transport" in collector
     assert "supervisor-proposal-writer-rows" in collector
     assert '"SupervisorActionReceipt"' in writer_rows and '"SupervisorUsage"' in writer_rows
+    assert all(f'"{entry_type}"' in writer_rows for entry_type in (
+        "SupervisorProposalReceipt", "SupervisorProposalDecision", "SupervisorWakeup",
+    ))
+    assert "proposal-evaluation-results.jsonl" in collector and "supervisor/v2" in collector
     assert "SupervisorCredential" not in writer_rows
 
 

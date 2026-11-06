@@ -47,6 +47,17 @@ TEMPLATE_PURPOSE = "diagnose the failed service check"
 CHECK_COMMAND = "false"
 WAIT_SECONDS = 300
 CASE_SEED_FILE = Path("/run/journal-proposal-case-seed.json")
+GRANT_LIMITS = {
+    "max_turns_per_day": 1,
+    "max_input_tokens_per_turn": 80000,
+    "max_output_tokens_per_turn": 8000,
+    "max_provider_requests_per_turn": 8,
+    "max_turn_seconds": 600,
+    "max_cost_microusd_per_day": 1000000,
+    "max_bundles_per_project_day": 20,
+    "max_bundles_per_episode_day": 1,
+    "max_new_diagnostics_per_episode": 1,
+}
 
 
 class SetupFailure(Exception):
@@ -322,20 +333,36 @@ def enrollment(app, plan_id, check_id, template_id, seed=None):
             "phrase_nudge": False,
             "project_reminder": False,
         },
-        "limits": {
-            "max_turns_per_day": 1,
-            "max_input_tokens_per_turn": 80000,
-            "max_output_tokens_per_turn": 8000,
-            "max_provider_requests_per_turn": 8,
-            "max_turn_seconds": 600,
-            "max_cost_microusd_per_day": 1000000,
-            "max_bundles_per_project_day": 20,
-            "max_bundles_per_episode_day": 1,
-            "max_new_diagnostics_per_episode": 1,
-        },
+        "limits": GRANT_LIMITS,
         "mode": "bounded_write",
         "valid_until_ms": int((time.time() + 3600) * 1000),
     }
+
+
+def configure_v2_grant(app, main, grant, seed):
+    settings = seed["grant_v2"]
+    version_two = {
+        "owner_user_id": grant["owner_user_id"],
+        "environment_id": main.row_id,
+        "watched_plans": settings["watched_plans"],
+        "capabilities": settings["capabilities"],
+        "wake_interval_minutes": settings["wake_interval_minutes"],
+        "event_wakeups": settings["event_wakeups"],
+        "limits": GRANT_LIMITS,
+        "valid_until_ms": grant["valid_until_ms"],
+        "paused": False,
+        "revoked": False,
+        "rules": [],
+    }
+    status, _headers, answer = request("/_supervisor/v1/enrollment/change", {
+        "protocol_version": 1,
+        "grant_id": grant["grant_id"],
+        "expected_grant_version": grant["grant_version"],
+        "change": {"kind": "configure", "grant": version_two},
+    })
+    if status != 200 or answer.get("grant_version") != grant["grant_version"] + 1:
+        raise SetupFailure("the owner could not configure the version 2 environment grant")
+    return answer["grant_version"]
 
 
 def write_token(token):
@@ -349,13 +376,16 @@ def write_token(token):
     os.chmod(TOKEN_FILE, 0o400)
 
 
-def revoke(grant_id):
-    request("/_supervisor/v1/enrollment/change", {
+def revoke(grant_id, expected_version=1):
+    status, _headers, answer = request("/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": grant_id,
-        "expected_grant_version": 1,
+        "expected_grant_version": expected_version,
         "change": {"kind": "revoke"},
     })
+    if status != 200 or answer.get("revoked") is not True:
+        raise SetupFailure("the owner could not revoke the staged supervisor grant")
+    return answer["grant_version"]
 
 
 def main():
@@ -372,11 +402,14 @@ def main():
     status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id, seed))
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""
+    grant_version = answer.get("grant_version", 1) if isinstance(answer, dict) else 1
     if status != 201 or not grant_id or not token:
         if grant_id:
-            revoke(grant_id)
+            revoke(grant_id, grant_version)
         raise SetupFailure("the staged journal refused fixed local-owner enrollment")
     try:
+        if seed:
+            grant_version = configure_v2_grant(app, main, answer, seed)
         ensure_smoke_task(app, main, plan_id, seed)
         if seed is None:
             run_bound_check(check_id)
@@ -387,9 +420,9 @@ def main():
         if seed and (seed["plan"]["state"] == "started_paused" or seed["plan"]["owner_gate"] != "none"):
             command("plan", "pause", str(plan_id))
         if seed and seed["grant"] == "revoked":
-            revoke(grant_id)
+            grant_version = revoke(grant_id, grant_version)
     except (OSError, SetupFailure) as error:
-        revoke(grant_id)
+        revoke(grant_id, grant_version)
         raise SetupFailure("the enrollment credential could not be stored safely; the grant was revoked") from error
 
 

@@ -3,7 +3,13 @@
     "id": 10,
     "entry_type": "SupervisorRun",
     "created_at": "2026-11-02T10:00:00+00:00",
-    "data": {"run_ref": "run-psu-01", "status": "admitted"}
+    "data": {
+      "run_ref": "run-psu-01",
+      "wakeup_id": "wakeup-psu-01",
+      "status": "admitted",
+      "wake_kind": "event",
+      "event_kind": "failed_check"
+    }
   },
   {
     "id": 11,
@@ -19,14 +25,26 @@
       "action_id": "action-psu-01",
       "status": "applied",
       "reason": "",
-      "intent": {"proposed_operations": [{"kind": "diagnostic_task", "plan_id": 4}]},
-      "result": {"task_id": 91}
+      "proposed_operations": [{"kind": "diagnostic_task", "plan_id": 4}],
+      "command_receipts": [{"status": "applied", "result": {"task_id": 91}}]
     }
   },
   {
     "id": 13,
+    "entry_type": "SupervisorActionReport",
+    "created_at": "2026-11-02T10:00:42+00:00",
+    "data": {"report_kind": "verification", "receipt_id": 12, "verification": "verified"}
+  },
+  {
+    "id": 14,
     "entry_type": "SupervisorRunState",
     "created_at": "2026-11-02T10:00:42+00:00",
     "data": {"run_ref": "run-psu-01", "status": "complete"}
+  },
+  {
+    "id": 15,
+    "entry_type": "SupervisorWakeup",
+    "created_at": "2026-11-02T10:00:42+00:00",
+    "data": {"wakeup_id": "wakeup-psu-01", "kind": "event", "result": "Acted", "event_kind": "failed_check"}
   }
 ]

@@ -13,10 +13,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from supervisor_bridge.proposal_evaluation import load_case, result_row
 
 
-PROFILE = ROOT / "docs/supervisor/v1"
-COMPOSE = PROFILE / "compose.json"
-ENV_FILE = PROFILE / "live-smoke.env"
-DEFAULT_RESULTS = PROFILE / "proposal-evaluation-results.jsonl"
+STAGING_PROFILE = ROOT / "docs/supervisor/v1"
+EVALUATION_PROFILE = ROOT / "docs/supervisor/v2"
+COMPOSE = STAGING_PROFILE / "compose.json"
+ENV_FILE = STAGING_PROFILE / "live-smoke.env"
+DEFAULT_RESULTS = EVALUATION_PROFILE / "proposal-evaluation-results.jsonl"
 
 
 def parse_args():
@@ -66,7 +67,7 @@ def append_once(path: Path, row: dict) -> None:
 
 def main():
     args = parse_args()
-    load_case(PROFILE / "proposal-evaluation-cases-v1.json", args.case_id)
+    load_case(EVALUATION_PROFILE / "proposal-evaluation-cases.json", args.case_id)
     bridge_path = args.bridge_state or bridge_state_path(args.env_file)
     bridge_state = json.loads(bridge_path.read_text(encoding="utf-8"))
     row = result_row(args.case_id, bridge_state, writer_rows(args.env_file))

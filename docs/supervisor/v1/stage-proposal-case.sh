@@ -31,7 +31,7 @@ fi
 SEED_DIR=$(mktemp -d)
 chmod 0700 "$SEED_DIR"
 trap 'rm -rf "$SEED_DIR"' EXIT HUP INT TERM
-PYTHONPATH="$ROOT/src" python3 - "$ROOT/docs/supervisor/v1/proposal-evaluation-cases-v1.json" "$CASE_ID" > "$SEED_DIR/case-seed.json" <<'PY'
+PYTHONPATH="$ROOT/src" python3 - "$ROOT/docs/supervisor/v2/proposal-evaluation-cases.json" "$CASE_ID" > "$SEED_DIR/case-seed.json" <<'PY'
 import json
 import sys
 from supervisor_bridge.proposal_evaluation import load_case, seed_case
@@ -97,4 +97,4 @@ compose exec --detach --user 10001:10001 --env JOURNAL_ROOT=/data/project \
     /data/project/.journal/bin/journal codex --env main --yes --no-open
 STAGING_AUTHORIZED=1 JOURNAL_SUPERVISOR_CASE_ID="$CASE_ID" \
     "$ROOT/docs/supervisor/v1/setup-live-smoke.sh"
-echo "case $CASE_ID is staged; run journal secret run 1 -- journal-supervisor-smoke"
+echo "version 2 case $CASE_ID is staged; run journal secret run 1 -- journal-supervisor-smoke"

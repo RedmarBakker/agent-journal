@@ -5,16 +5,9 @@
   "receipt": {
     "action_id": "action-psu-01",
     "run_id": "run-psu-01",
-    "fence": 1,
     "status": "applied",
     "verification": "verified",
-    "outcome": "useful_evidence",
-    "usage": {
-      "input_tokens": 16000,
-      "output_tokens": 612,
-      "provider_requests": 3,
-      "provider_retries": 0
-    }
+    "outcome": "useful_evidence"
   },
   "metering": {
     "run_ref": {
