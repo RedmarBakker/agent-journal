@@ -867,6 +867,16 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "status --porcelain --untracked-files=all" in script
     assert 'git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION"' in script
     assert "src/supervisor_bridge" in script
+    gateway_journal_files = (
+        "src/journal/__init__.py",
+        "src/journal/features/__init__.py",
+        "src/journal/features/supervisor/capability_catalogue.py",
+        "src/journal/features/supervisor/support/supervisor_operation_commands.py",
+    )
+    for source in gateway_journal_files:
+        target = source.removeprefix("src/")
+        assert source in script
+        assert f"COPY {source} /opt/journal-supervisor/lib/{target}" in dockerfile
     assert "docs/supervisor/v1/Dockerfile.gateway" in script
     assert "docs/supervisor/v1/journal-supervisor-bridge" in script
     assert "docs/supervisor/v1/contract.schema.json" in script

@@ -17,6 +17,10 @@ BUILD_CONTEXT=$(mktemp -d)
 trap 'rm -rf "$BUILD_CONTEXT"' EXIT HUP INT TERM
 git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     src/supervisor_bridge \
+    src/journal/__init__.py \
+    src/journal/features/__init__.py \
+    src/journal/features/supervisor/capability_catalogue.py \
+    src/journal/features/supervisor/support/supervisor_operation_commands.py \
     docs/supervisor/v1/Dockerfile.gateway \
     docs/supervisor/v1/contract.schema.json \
     docs/supervisor/v1/journal-supervisor-bridge \

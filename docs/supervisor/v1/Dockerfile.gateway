@@ -6,6 +6,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge
+COPY src/journal/__init__.py /opt/journal-supervisor/lib/journal/__init__.py
+COPY src/journal/features/__init__.py /opt/journal-supervisor/lib/journal/features/__init__.py
+COPY src/journal/features/supervisor/capability_catalogue.py /opt/journal-supervisor/lib/journal/features/supervisor/capability_catalogue.py
+COPY src/journal/features/supervisor/support/supervisor_operation_commands.py /opt/journal-supervisor/lib/journal/features/supervisor/support/supervisor_operation_commands.py
 COPY docs/supervisor/v1/contract.schema.json /opt/journal-supervisor/docs/supervisor/v1/contract.schema.json
 COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge
 COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment
