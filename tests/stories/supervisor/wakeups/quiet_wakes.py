@@ -1,12 +1,13 @@
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.supervisor.supervisor_scheduled_wake import SupervisorScheduledWake, scheduled_wake
+from tests.stories.fixtures.supervisor.supervisor_quiet_wakes import SupervisorQuietWakes
+from tests.stories.fixtures.supervisor.supervisor_scheduled_wake import scheduled_wake
 
 
 def records(story):
     return story.user_opens_in(
         story.fixture.supervisor_owner_environment,
-        f"/journal/supervisor/records?period=today&plan_id={story.plans.first}",
+        f"/journal/supervisor/records?period=last_7_days&plan_id={story.plans.first}",
     )
 
 
@@ -14,7 +15,7 @@ def expect_grant_covers_plan(story):
     story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
 
 
-@story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
+@story(SupervisorQuietWakes, subject=AgentRole.SUPERVISOR)
 def test_a_new_grant_records_empty_then_quiets_an_unchanged_wake(story):
     expect_grant_covers_plan(story)
     first = scheduled_wake(story)
@@ -39,7 +40,7 @@ def test_a_new_grant_records_empty_then_quiets_an_unchanged_wake(story):
     story.expect_stack(story.agents.subject)
 
 
-@story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
+@story(SupervisorQuietWakes, subject=AgentRole.SUPERVISOR)
 def test_a_task_change_keeps_the_next_scheduled_wake_from_being_quiet(story):
     expect_grant_covers_plan(story)
     before = records(story)
