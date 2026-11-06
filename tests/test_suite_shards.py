@@ -1,3 +1,5 @@
+import ast
+from configparser import ConfigParser
 import importlib.util
 import sys
 from pathlib import Path
@@ -62,6 +64,35 @@ def test_story_files_stay_in_one_shard_when_the_run_collects_paths(monkeypatch):
         "tests/stories/worker/peers/role_route_strategy.py::test_a_role_worker_can_send_a_job_to_an_idle_peer_in_its_domain",
     )
     assert {dealt_unit(path) for path in paths} == {"tests/stories/"}, "story paths from one run are compared together"
+
+
+def test_every_story_file_matches_the_default_pytest_collection_pattern():
+    root = Path(__file__).resolve().parents[1]
+    stories = root / "tests" / "stories"
+    config = ConfigParser()
+    config.read(root / "pytest.ini")
+    patterns = config.get("pytest", "python_files").split()
+    story_files = [path for path in stories.rglob("*.py") if has_story_test(path)]
+    missed = [
+        path.relative_to(root).as_posix()
+        for path in story_files
+        if not any(path.match(pattern) for pattern in patterns)
+    ]
+    assert not missed, f"story files do not match pytest.ini's python_files patterns: {', '.join(missed)}"
+
+
+def has_story_test(path: Path) -> bool:
+    module = ast.parse(path.read_text(encoding="utf-8"))
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and any(is_story_decorator(decorator) for decorator in node.decorator_list)
+        for node in module.body
+    )
+
+
+def is_story_decorator(decorator: ast.expr) -> bool:
+    name = decorator.func if isinstance(decorator, ast.Call) else decorator
+    return isinstance(name, ast.Name) and name.id == "story"
 
 
 class Turn:
