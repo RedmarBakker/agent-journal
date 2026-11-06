@@ -11,3 +11,5 @@ class SupervisorNotSetUp(NewSession):
         fixture = seeded(story.app, owner_id=1)
         self.plans.first = fixture.plan.row_id
         self.supervisor_owner_environment = fixture.owner_environment.name
+        opened = story.user_opens_in(self.supervisor_owner_environment, "/journal/plans")
+        opened.expect_viewer_passed()
