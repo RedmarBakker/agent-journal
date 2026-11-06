@@ -910,7 +910,7 @@ def test_run_or_propose_schema_and_description_name_fields_by_catalogue_verb(tmp
     assert "kind" not in arguments["properties"]
     assert arguments["additionalProperties"] is False
     assert all(item in arguments["description"] for item in command_fields)
-    assert "omit the operation kind" in tool["description"]
+    assert "omit the operation kind" in tool["description"].lower()
     assert all(item in tool["description"] for item in command_fields)
 
 
