@@ -221,7 +221,12 @@ static bool contains_all(const char *text, const char *const *needles, size_t co
     return true;
 }
 
-static int valid_profile(const char *config_path) {
+static int refuse_check(const char *check, int status) {
+    fprintf(stderr, "supervisor smoke refused at check: %s\n", check);
+    return status;
+}
+
+static int valid_profile(const char *config_path, const char **failed_check) {
     static const char *required_config[] = {
         "\"apiKey\":\"journal-supervisor-metered-proxy-placeholder\"",
         "\"gateway\":{\"mode\":\"local\",\"bind\":\"lan\",\"auth\":{\"mode\":\"token\"}}",
@@ -239,10 +244,12 @@ static int valid_profile(const char *config_path) {
         "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true,\"transport\":\"stdio\",\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-mcp\",\"args\":[],\"connectionTimeoutMs\":5000,\"requestTimeoutMs\":20000,\"supportsParallelToolCalls\":false,\"toolFilter\":{\"include\":[",
         "\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}",
         "journal__journal_supervisor-observe",
-        "journal_supervisor.run_or_propose",
-        "journal__journal_supervisor-run_or_propose",
         "journal__journal_supervisor-receipt",
         "\"tools\":{\"toolSearch\":false,\"allow\":[",
+    };
+    static const char *required_action_tools[] = {
+        "journal_supervisor.run_or_propose",
+        "journal__journal_supervisor-run_or_propose",
     };
     static const char *required_gateway_image[] = {
         "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",
@@ -378,6 +385,7 @@ static int valid_profile(const char *config_path) {
     char *gateway_package = NULL, *gateway_entrypoint = NULL, *gateway_environment = NULL, *gateway_reconcile = NULL;
     char *supervisor_handler = NULL;
     char *firewall = NULL, *journal_config = NULL, *journal_server = NULL, *config = NULL;
+    *failed_check = "staged runtime profile files are readable";
     if (read_file(COMPOSE_FILE, &compose, 131072) != 0
         || read_file(WRITER_DOCKERFILE, &writer_package, 131072) != 0
         || read_file(WRITER_ENTRYPOINT, &writer_entrypoint, 131072) != 0
@@ -411,6 +419,11 @@ static int valid_profile(const char *config_path) {
         return -1;
     }
     char *compact = compact_json(config);
+    const char *failure_check = "pinned runtime profile";
+    if (!compact) failure_check = "OpenClaw profile file";
+    else if (!contains_all(compact, required_action_tools, sizeof(required_action_tools) / sizeof(required_action_tools[0]))) {
+        failure_check = "OpenClaw v2 action-tool inventory";
+    }
     const char *gateway_service = strstr(compose, "\"gateway\": {");
     const char *backup_service = gateway_service ? strstr(gateway_service, "\"backup\": {") : NULL;
     bool valid = compact
@@ -433,6 +446,7 @@ static int valid_profile(const char *config_path) {
         && contains_all(writer_setup, required_setup, sizeof(required_setup) / sizeof(required_setup[0]))
         && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
         && contains_all(compact, required_config, sizeof(required_config) / sizeof(required_config[0]))
+        && contains_all(compact, required_action_tools, sizeof(required_action_tools) / sizeof(required_action_tools[0]))
         && only_journal_mcp_server(compact)
         && !strstr(compact, "\"profiles\":")
         && !strstr(compact, "\"order\":")
@@ -460,6 +474,7 @@ static int valid_profile(const char *config_path) {
     free(journal_config);
     free(journal_server);
     free(config);
+    *failed_check = valid ? NULL : failure_check;
     return valid ? 0 : -1;
 }
 
@@ -810,41 +825,66 @@ static void remove_secrets(const char *directory) {
 
 int main(int argc, char **argv) {
     (void)argv;
-    if (argc != 1 || access(COMPOSE_FILE, R_OK) != 0 || access(ENV_FILE, R_OK) != 0) return 2;
+    if (argc != 1) return refuse_check("command-line argument check", 2);
+    if (access(COMPOSE_FILE, R_OK) != 0) return refuse_check("Compose file check", 2);
+    if (access(ENV_FILE, R_OK) != 0) return refuse_check("live-smoke environment file check", 2);
     char source[MAX_PATH_BYTES], config_path[MAX_PATH_BYTES], gateway_state[MAX_PATH_BYTES], receipt_path[MAX_PATH_BYTES];
-    if (live_smoke_setting_value(ENV_FILE, "TENANT_SECRET_SOURCE_DIR", source, sizeof(source)) != 0
-        || live_smoke_setting_value(ENV_FILE, "OPENCLAW_CONFIG_FILE", config_path, sizeof(config_path)) != 0
-        || live_smoke_setting_value(ENV_FILE, "GATEWAY_STATE_PATH", gateway_state, sizeof(gateway_state)) != 0
-        || !private_directory(source)
-        || !private_directory(gateway_state)
-        || !path_join(receipt_path, sizeof(receipt_path), gateway_state, "journal-supervisor-transport/bridge-state.json")
-        || !fresh_state(gateway_state)
-        || valid_profile(config_path) != 0) return 2;
+    if (live_smoke_setting_value(ENV_FILE, "TENANT_SECRET_SOURCE_DIR", source, sizeof(source)) != 0) {
+        return refuse_check("tenant secret source setting", 2);
+    }
+    if (live_smoke_setting_value(ENV_FILE, "OPENCLAW_CONFIG_FILE", config_path, sizeof(config_path)) != 0) {
+        return refuse_check("OpenClaw config path setting", 2);
+    }
+    if (live_smoke_setting_value(ENV_FILE, "GATEWAY_STATE_PATH", gateway_state, sizeof(gateway_state)) != 0) {
+        return refuse_check("Gateway state path setting", 2);
+    }
+    if (!private_directory(source)) return refuse_check("private tenant secret source directory", 2);
+    if (!private_directory(gateway_state)) return refuse_check("private Gateway state directory", 2);
+    if (!path_join(receipt_path, sizeof(receipt_path), gateway_state, "journal-supervisor-transport/bridge-state.json")) {
+        return refuse_check("Gateway receipt path", 2);
+    }
+    if (!fresh_state(gateway_state)) return refuse_check("fresh Gateway state check", 2);
+    const char *failed_profile_check = NULL;
+    if (valid_profile(config_path, &failed_profile_check) != 0) return refuse_check(failed_profile_check, 2);
     for (size_t index = 0; index < sizeof(required_secret_files) / sizeof(required_secret_files[0]); index++) {
         char path[MAX_PATH_BYTES];
-        if (!path_join(path, sizeof(path), source, required_secret_files[index])) return 2;
-        if (!required_file(path)) return 2;
+        if (!path_join(path, sizeof(path), source, required_secret_files[index])) {
+            return refuse_check("tenant credential file path", 2);
+        }
+        if (!required_file(path)) return refuse_check("tenant credential files", 2);
     }
     for (size_t index = 0; index < sizeof(required_external_secret_files) / sizeof(required_external_secret_files[0]); index++) {
         char path[MAX_PATH_BYTES];
-        if (!path_join(path, sizeof(path), source, required_external_secret_files[index])) return 2;
-        if (!required_external_file(path)) return 2;
+        if (!path_join(path, sizeof(path), source, required_external_secret_files[index])) {
+            return refuse_check("writer TLS file path", 2);
+        }
+        if (!required_external_file(path)) return refuse_check("writer TLS files", 2);
     }
     const char *home = getenv("HOME");
-    if (!home || !private_directory(home)) return 2;
+    if (!home) return refuse_check("HOME environment check", 2);
+    if (!private_directory(home)) return refuse_check("private HOME directory", 2);
     char directory[MAX_PATH_BYTES];
-    if (!path_join(directory, sizeof(directory), home, "journal-supervisor-smoke-XXXXXX") || !mkdtemp(directory)) return 2;
+    if (!path_join(directory, sizeof(directory), home, "journal-supervisor-smoke-XXXXXX") || !mkdtemp(directory)) {
+        return refuse_check("temporary secret directory creation", 2);
+    }
     chmod(directory, 0700);
-    bool secrets_ready = true;
     for (size_t index = 0; index < sizeof(required_secret_files) / sizeof(required_secret_files[0]); index++) {
-        if (copy_secret(source, directory, required_secret_files[index]) != 0) secrets_ready = false;
+        if (copy_secret(source, directory, required_secret_files[index]) != 0) {
+            remove_secrets(directory);
+            return refuse_check("tenant credential staging", 2);
+        }
     }
     char key[MAX_SECRET_BYTES + 1] = {0};
     size_t key_length = 0;
-    if (!secrets_ready || read_key(key, sizeof(key), &key_length) != 0 || write_key(directory, key, key_length) != 0) {
+    if (read_key(key, sizeof(key), &key_length) != 0) {
         erase(key, sizeof(key));
         remove_secrets(directory);
-        return 2;
+        return refuse_check("provider API key input", 2);
+    }
+    if (write_key(directory, key, key_length) != 0) {
+        erase(key, sizeof(key));
+        remove_secrets(directory);
+        return refuse_check("provider API key staging", 2);
     }
     erase(key, sizeof(key));
     struct sigaction action = {0};
@@ -856,21 +896,20 @@ int main(int argc, char **argv) {
     int codex_ready = compose(COMPOSE_READY, directory, gateway_state, CODEX_READY_TIMEOUT_SECONDS, mode);
     if (codex_ready != 0) {
         remove_secrets(directory);
-        puts("supervisor smoke refused to start without the staged Codex device login");
-        return codex_ready;
+        return refuse_check("staged Codex device login", codex_ready);
     }
     int result = compose(COMPOSE_UP, directory, gateway_state, SMOKE_RUN_SECONDS, mode);
     int cleanup = compose(COMPOSE_DOWN, directory, gateway_state, STOP_SECONDS + 5, mode);
     if (mode == EVALUATION_CASE) remove_case_wake(gateway_state);
     remove_secrets(directory);
     if (result == SMOKE_PROVIDER_CAP) {
+        if (cleanup != 0) return refuse_check("runtime cleanup after provider cap", cleanup);
         puts("supervisor smoke stopped: provider metering was capped before a receipt");
-        return cleanup == 0 ? 3 : cleanup;
+        return 3;
     }
     if (result == 0 && cleanup == 0) {
         puts(mode == EVALUATION_CASE ? "supervisor case stopped after one wake result" : "supervisor smoke stopped after one verified receipt");
         return 0;
     }
-    puts("supervisor smoke runtime stopped without a verified result");
-    return result ? result : cleanup;
+    return refuse_check("verified smoke result and cleanup", result ? result : cleanup);
 }

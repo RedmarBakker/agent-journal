@@ -318,7 +318,9 @@ def fake_docker(tmp_path, home, executable):
 
 
 def run_launcher(executable, work, home, docker_path, key, *arguments):
-    environment = {"PATH": f"{docker_path}:/usr/bin:/bin", "HOME": str(home), "LANG": "C.UTF-8"}
+    environment = {"PATH": f"{docker_path}:/usr/bin:/bin", "LANG": "C.UTF-8"}
+    if home is not None:
+        environment["HOME"] = str(home)
     return subprocess.run(
         [str(executable), *arguments],
         input=key,
@@ -326,6 +328,138 @@ def run_launcher(executable, work, home, docker_path, key, *arguments):
         env=environment,
         capture_output=True,
         timeout=10,
+    )
+
+
+def test_launcher_refusals_name_the_failed_start_check(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    synthetic_key = b"sk-ant-test-fixed-smoke-key-123456789\n"
+
+    def attempt(label, expected, prepare=None, arguments=(), key=b"", omit_home=False, code=2):
+        case = tmp_path / label
+        work, secrets, home = staging_root(case)
+        if prepare:
+            prepare(work, secrets, home)
+        docker_path = fake_docker(case, home, docker_stub)
+        result = run_launcher(
+            executable,
+            work,
+            None if omit_home else home,
+            docker_path,
+            key,
+            *arguments,
+        )
+        output = (result.stdout + result.stderr).decode()
+        assert result.returncode == code, output
+        assert len(output.splitlines()) == 1, output
+        assert expected in output, output
+        assert synthetic_key.strip() not in result.stdout + result.stderr
+
+    attempt("arguments", "command-line argument check", arguments=("extra",))
+    attempt(
+        "compose-file",
+        "Compose file check",
+        lambda work, _secrets, _home: (work / COMPOSE).unlink(),
+    )
+    attempt(
+        "environment-file",
+        "live-smoke environment file check",
+        lambda work, _secrets, _home: (work / ENV_FILE).unlink(),
+    )
+
+    def remove_setting(key):
+        def prepare(work, _secrets, _home):
+            path = work / ENV_FILE
+            path.write_text("\n".join(
+                line for line in path.read_text().splitlines()
+                if not line.startswith(f"{key}=")
+            ) + "\n")
+        return prepare
+
+    attempt("secret-setting", "tenant secret source setting", remove_setting("TENANT_SECRET_SOURCE_DIR"))
+    attempt("config-setting", "OpenClaw config path setting", remove_setting("OPENCLAW_CONFIG_FILE"))
+    attempt("state-setting", "Gateway state path setting", remove_setting("GATEWAY_STATE_PATH"))
+    attempt(
+        "secret-directory",
+        "private tenant secret source directory",
+        lambda _work, secrets, _home: secrets.chmod(0o750),
+    )
+    attempt(
+        "state-directory",
+        "private Gateway state directory",
+        lambda _work, _secrets, home: (home.parent / "gateway-state").chmod(0o750),
+    )
+
+    def stale_gateway_state(_work, _secrets, home):
+        transport = home.parent / "gateway-state" / "journal-supervisor-transport"
+        transport.mkdir(mode=0o700)
+        (transport / "bridge-state.json").write_text('{"receipt":{"status":"applied"}}')
+
+    attempt("stale-state", "fresh Gateway state check", stale_gateway_state)
+
+    def legacy_tools(work, _secrets, _home):
+        path = work / "docs/supervisor/v1/openclaw-live.json"
+        config = json.loads(path.read_text())
+        config["mcp"]["servers"]["journal"]["toolFilter"]["include"] = [
+            "journal_supervisor.observe",
+            "journal_supervisor.apply_maintenance",
+            "journal_supervisor.receipt",
+        ]
+        config["tools"]["allow"] = [
+            "journal__journal_supervisor-observe",
+            "journal__journal_supervisor-apply_maintenance",
+            "journal__journal_supervisor-receipt",
+        ]
+        path.write_text(json.dumps(config))
+
+    attempt("legacy-action-tool", "OpenClaw v2 action-tool inventory", legacy_tools)
+
+    def missing_profile(work, _secrets, _home):
+        (work / "docs/supervisor/v1/openclaw-live.json").unlink()
+
+    attempt("missing-openclaw-profile", "staged runtime profile files are readable", missing_profile)
+
+    def invalid_profile(work, _secrets, _home):
+        path = work / "docs/supervisor/v1/openclaw-live.json"
+        config = json.loads(path.read_text())
+        config["agents"]["defaults"]["model"]["primary"] = "anthropic/claude-haiku"
+        path.write_text(json.dumps(config))
+
+    attempt("invalid-pinned-profile", "pinned runtime profile", invalid_profile)
+
+    def missing_tenant_credential(_work, secrets, _home):
+        (secrets / "restic_password").unlink()
+
+    attempt("missing-tenant-credential", "tenant credential files", missing_tenant_credential)
+
+    def missing_tls_material(_work, secrets, _home):
+        (secrets / "writer_supervisor_tls_key").unlink()
+
+    attempt("missing-tls-material", "writer TLS files", missing_tls_material)
+    attempt("missing-home", "HOME environment check", omit_home=True)
+    attempt(
+        "private-home",
+        "private HOME directory",
+        lambda _work, _secrets, home: home.chmod(0o750),
+    )
+    attempt(
+        "temporary-directory",
+        "temporary secret directory creation",
+        lambda _work, _secrets, home: home.chmod(0o500),
+    )
+
+    def unreadable_tenant_credential(_work, secrets, _home):
+        (secrets / "openclaw_hook_token").chmod(0)
+
+    if os.geteuid() != 0:
+        attempt("secret-copy", "tenant credential staging", unreadable_tenant_credential)
+    attempt("empty-key-input", "provider API key input")
+    attempt(
+        "missing-device-login",
+        "staged Codex device login",
+        lambda _work, _secrets, home: (home / "codex-login-missing").touch(),
+        key=synthetic_key,
+        code=21,
     )
 
 
