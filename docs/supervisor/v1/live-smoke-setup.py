@@ -339,11 +339,11 @@ def enrollment(app, plan_id, check_id, template_id, seed=None):
     }
 
 
-def configure_v2_grant(app, main, grant, seed):
+def configure_v2_grant(grant, seed):
     settings = seed["grant_v2"]
     version_two = {
         "owner_user_id": grant["owner_user_id"],
-        "environment_id": main.row_id,
+        "environment_id": grant["driver_environment_id"],
         "watched_plans": settings["watched_plans"],
         "capabilities": settings["capabilities"],
         "wake_interval_minutes": settings["wake_interval_minutes"],
@@ -413,7 +413,7 @@ def main():
         raise SetupFailure("the staged journal refused fixed local-owner enrollment")
     try:
         if seed:
-            grant_version = configure_v2_grant(app, main, answer, seed)
+            grant_version = configure_v2_grant(answer, seed)
         ensure_smoke_task(app, main, plan_id, seed)
         if seed is None:
             run_bound_check(check_id)
@@ -427,7 +427,7 @@ def main():
             grant_version = revoke(grant_id)
     except (OSError, SetupFailure) as error:
         revoke(grant_id)
-        raise SetupFailure("the enrollment credential could not be stored safely; the grant was revoked") from error
+        raise SetupFailure(f"{error}; the grant was revoked") from error
 
 
 if __name__ == "__main__":

@@ -1,13 +1,17 @@
-"""Static and pure-function checks for the inert supervisor v1 deployment package."""
+"""Checks for the supervisor v1 deployment package and setup script."""
 
 import ast
+import importlib.util
 import json
 import re
 import stat
 from pathlib import Path
 
+from journal.models.supervisor_grant import SupervisorGrant
+from journal.supervisor_failure import SupervisorFailure
 from plugins.supervisor_v1 import bridge_service
 from supervisor_bridge.contracts import OPENCLAW_TOOL_NAMES
+from tests.test_supervisor_authority import admitted, seeded
 
 
 ROOT = Path(__file__).parents[1]
@@ -35,6 +39,13 @@ def live_setup_function_source(name: str) -> str:
     tree = ast.parse(source)
     function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name)
     return ast.get_source_segment(source, function)
+
+
+def live_setup_module():
+    spec = importlib.util.spec_from_file_location("supervisor_live_setup", PROFILE / "live-smoke-setup.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_profile_is_single_tenant_and_off_by_default():
@@ -389,6 +400,42 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     ))
     assert "proposal-evaluation-results.jsonl" in collector and "supervisor/v2" in collector
     assert "SupervisorCredential" not in writer_rows
+
+
+def test_live_setup_configures_an_enrollment_for_its_driver_environment(app, monkeypatch):
+    fixture = seeded(app)
+    monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, _environment: True)
+    try:
+        grant, _token, _principal = admitted(fixture)
+        setup = live_setup_module()
+        request_body = {}
+
+        def apply_change(path, body):
+            request_body.update(path=path, body=body)
+            try:
+                changed, _token = fixture.authority.change(fixture.owner, body)
+            except SupervisorFailure as failure:
+                return failure.status, {}, {"error": str(failure)}
+            return 200, {}, changed
+
+        monkeypatch.setattr(setup, "request", apply_change)
+        settings = SupervisorGrant.from_version_one(grant).data()
+        version = setup.configure_v2_grant(grant, {"grant_v2": settings})
+        configured = fixture.authority.owner_control(fixture.owner, fixture.owner_environment.row_id)["grant"]
+
+        assert fixture.owner_environment.row_id != grant["driver_environment_id"]
+        assert request_body["path"] == "/_supervisor/v1/enrollment/change"
+        assert request_body["body"]["change"]["grant"]["environment_id"] == grant["driver_environment_id"]
+        assert version == grant["grant_version"] + 1
+        assert configured["environment_id"] == fixture.driver_environment.row_id
+    finally:
+        fixture.authority.secrets_store.drop(fixture.credentials)
+
+
+def test_live_setup_keeps_the_failure_reason_after_revoking_the_grant():
+    main = live_setup_function_source("main")
+
+    assert 'raise SetupFailure(f"{error}; the grant was revoked") from error' in main
 
 
 def test_hosted_compose_requires_a_private_login_before_publishing_caddy():
