@@ -21,7 +21,8 @@ def test_collector_records_proposal_after_launcher_stops_stack_without_bridge_fi
         "import json, sys\n"
         "from pathlib import Path\n"
         f"Path({str(calls_path)!r}).write_text(json.dumps(sys.argv[1:]))\n"
-        f"sys.stdout.write(Path({str(FIXTURE)!r}).read_text())\n"
+        f"fixture_path = {str(FIXTURE)!r}\n"
+        "sys.stdout.write(json.dumps({'rows': json.loads(Path(fixture_path).read_text())}))\n"
     )
     fake_docker.chmod(0o755)
     gateway_state = tmp_path / "gateway-state"
