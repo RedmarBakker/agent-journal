@@ -6,6 +6,7 @@ from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
+from tests.stories.fixtures.main.reopened_plan import ReopenedPlan
 from tests.stories.fixtures.main.started_plan import StartedPlan
 
 
@@ -18,6 +19,15 @@ def test_a_plan_whose_every_remaining_task_is_blocked_blocks_itself_and_opens_wi
     result = story.agent_runs(story.agents.subject, f"task unblock {story.tasks.second}")
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     result.expect_agent_told(story.agents.subject, PlansNudges.PLAN_REOPENED, n=story.plans.first)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
+
+
+@story(ReopenedPlan, subject=AgentRole.MAIN)
+def test_a_plan_reopening_line_is_not_sent_again_when_the_same_task_reopens_twice(story):
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.second} 'waits on the designer'")
+    result = story.agent_runs(story.agents.subject, f"task unblock {story.tasks.second}")
+    result.expect_agent_told_count(story.agents.subject, PlansNudges.PLAN_REOPENED, 0, n=story.plans.first, why=f"task {story.tasks.second} is open again")
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 

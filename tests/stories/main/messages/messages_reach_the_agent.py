@@ -12,6 +12,7 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 from tests.stories.fixtures.main.started_plan import StartedPlan
 from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
+from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 @story(TwoUnreadMessages, subject=AgentRole.MAIN)

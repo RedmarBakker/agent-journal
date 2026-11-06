@@ -32,6 +32,11 @@ class StepChecks:
     def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
         self.expect_told_to(self.story.session_of(agent), nudge, values)
 
+    def expect_agent_told_count(self, agent: StoryAgent, nudge: Nudge, count: int, **values) -> None:
+        session = self.story.session_of(agent)
+        lines = [line for line in self.said if line.matches(nudge.key, values) and line.session == session]
+        assert len(lines) == count, f"{session} was told {nudge.key} {values} {len(lines)} times, not {count}: {self.account(session)}"
+
     def expect_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
         assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account(session)}"
 

@@ -52,8 +52,10 @@ def test_the_write_hold_leaves_the_task_in_hand_as_it_was(story):
 
 
 @story(WorkingAgent, subject=AgentRole.MAIN)
-def test_an_unread_message_is_named_at_the_stop(story):
-    message = story.user_sends_message("is the footer done?")
-    result = story.agent_stops(story.agents.subject)
+def test_an_unread_message_is_named_when_it_arrives_and_not_again_at_the_stop(story):
+    result = story.user_sends_message_in("main", "is the footer done?")
+    message = story.newest("messages")
     result.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
     story.expect_stack(story.agents.subject, Ready)
