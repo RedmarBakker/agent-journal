@@ -5,12 +5,15 @@ import importlib.util
 import json
 import re
 import stat
+from types import SimpleNamespace
 from pathlib import Path
 
 from journal.models.supervisor_grant import SupervisorGrant
+from journal.models.task_state import TaskState
 from journal.supervisor_failure import SupervisorFailure
 from plugins.supervisor_v1 import bridge_service
 from supervisor_bridge.contracts import OPENCLAW_TOOL_NAMES
+from supervisor_bridge.proposal_evaluation import load_case, seed_case
 from tests.test_supervisor_authority import admitted, seeded
 
 
@@ -380,6 +383,7 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     setup_program = (PROFILE / "live-smoke-setup.py").read_text()
     writer_build = (PROFILE / "build-writer.sh").read_text()
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
 
     assert "VOLUME=journal-supervisor-smoke_writer_state" in stage
     assert "'rm -rf /data/project && mkdir -p /data/project'" in stage
@@ -396,8 +400,14 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     assert 'scheduled|quiet)' in reconcile
     assert 'event:*:PSU-[0-9][0-9])' in reconcile
     assert 'reconcile event "$event_kind" "$event_id"' in reconcile
+    assert 'case_wake=$1' in reconcile
+    assert "read_case_wake(gateway_state, case_wake" in launcher
+    assert '"/opt/journal-supervisor/bin/journal-supervisor-reconcile", case_wake, NULL' in launcher
     assert "JOURNAL_SUPERVISOR_CASE_ID" in setup and "/usr/local/bin/supervisor-live-setup" in setup
     assert "load_seed(CASE_SEED_FILE, case_id)" in setup_program
+    assert "case_task_specs(seed)" in setup_program
+    assert "case_check_marker(seed[\"case_id\"])" in setup_program
+    assert "marker.parent.rmdir()" in setup_program
     assert "configure_v2_grant" in setup_program
     assert '"watched_plans": settings["watched_plans"]' in setup_program
     assert "proposal-evaluation-cases-v1.json" not in dockerfile
@@ -694,7 +704,9 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert "phases[0].title == PHASE_TITLE" in signature
     assert "smoke_tasks_match(tasks)" in signature
     assert "task.title == TASK_TITLE" in smoke_tasks and "task.brief == TASK_BRIEF" in smoke_tasks
-    assert "task.state == TaskState.OPEN and task.supervisor_reserved" in smoke_tasks
+    assert "case_task_specs(seed)" in smoke_tasks
+    assert "task.supervisor_reserved == spec[\"supervisor_reserved\"]" in smoke_tasks
+    assert "task.state in {TaskState.OPEN, TaskState.STARTED}" in smoke_tasks
     assert "if not setup_plan_matches(plan, phases, tasks):" in resume
     assert "if authority.has_enrollment_grant():" in resume
     assert "def has_enrollment_grant(self) -> bool:" in authority
@@ -729,6 +741,43 @@ def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollmen
     assert main.index("run_bound_check(check_id)") < main.index("write_token(token)")
     assert main.count("run_bound_check(check_id)") == 1
     assert "answer.get(\"code\") != expected_code" in command
+
+
+def test_psu04_live_setup_accepts_only_a_started_diagnostic_and_open_reserved_anchor():
+    setup = live_setup_module()
+    seed = seed_case(load_case(ROOT / "docs/supervisor/v2/proposal-evaluation-cases.json", "PSU-04"))
+    diagnostic = SimpleNamespace(
+        title=seed["tasks"]["title"], brief=seed["tasks"]["brief"], state=TaskState.STARTED,
+        supervisor_reserved=False,
+    )
+    anchor = seed["tasks"]["eligibility_anchor"]
+    enrollment_task = SimpleNamespace(
+        title=anchor["title"], brief=anchor["brief"], state=TaskState.OPEN, supervisor_reserved=True,
+    )
+
+    assert setup.smoke_tasks_match([diagnostic, enrollment_task], seed)
+    enrollment_task.state = TaskState.STARTED
+    assert not setup.smoke_tasks_match([diagnostic, enrollment_task], seed)
+
+
+def test_latest_run_passed_setup_controls_failure_then_pass_and_removes_its_run_state(tmp_path, monkeypatch):
+    setup = live_setup_module()
+    seed = seed_case(load_case(ROOT / "docs/supervisor/v2/proposal-evaluation-cases.json", "PSU-06"))
+    marker = tmp_path / "private-check-state" / "PSU-06-passed"
+    observed = []
+
+    monkeypatch.setattr(setup, "case_check_marker", lambda case_id: marker)
+
+    def run_check(_noun, _verb, check_id, *, expected_code):
+        verdict = "failed" if expected_code == 1 else "passed"
+        observed.append((verdict, marker.exists()))
+        return f"check {check_id} {verdict}: synthetic result"
+
+    monkeypatch.setattr(setup, "command", run_check)
+    setup.run_case_checks(73, seed)
+
+    assert observed == [("failed", False), ("passed", True)]
+    assert not marker.exists()
 
 
 def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypatch):

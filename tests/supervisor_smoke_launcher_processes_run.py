@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[index], "up") == 0) is_up = 1;
         if (strcmp(argv[index], "/usr/local/bin/supervisor-codex-ready") == 0) is_ready = 1;
         if (strstr(argv[index], "healthz")) is_gateway_health = 1;
-        if (strcmp(argv[index], "/opt/journal-supervisor/bin/journal-supervisor-reconcile") == 0 && index == argc - 1) is_reconcile = 1;
+        if (strcmp(argv[index], "/opt/journal-supervisor/bin/journal-supervisor-reconcile") == 0) is_reconcile = 1;
     }
     if (is_ready) {
         snprintf(path, sizeof(path), "%s/codex-login-missing", home);
@@ -107,6 +107,8 @@ int main(int argc, char **argv) {
         if (!state) return 18;
         snprintf(path, sizeof(path), "%s/proposal-result", home);
         int has_proposal_result = access(path, F_OK) == 0;
+        snprintf(path, sizeof(path), "%s/receipt-pending", home);
+        int has_receipt_pending = access(path, F_OK) == 0;
         snprintf(path, sizeof(path), "%s/provider-capped", home);
         if (access(path, F_OK) == 0)
             fputs(
@@ -119,6 +121,13 @@ int main(int argc, char **argv) {
                 "{\"last_admission\":\"admitted\",\"usage_settlement\":\"settled\","
                 "\"receipt\":{\"action_id\":\"action-1\",\"status\":\"proposed\",\"verification\":\"not_applied\"},"
                 "\"metering\":{\"provider_requests\":1}}",
+                state
+            );
+        else if (has_receipt_pending)
+            fputs(
+                "{\"last_admission\":\"admitted\",\"last_error\":\"receipt_pending\","
+                "\"hook_status\":\"acknowledged\",\"active_run\":{\"run_id\":\"run-1\"},"
+                "\"receipt\":null,\"metering\":{\"status\":\"known\",\"pending_request\":null,\"provider_requests\":4}}",
                 state
             );
         else if (strcmp(wake_kind, "quiet\n") == 0)
@@ -525,6 +534,7 @@ def test_launcher_keeps_case_proposal_state_after_cleanup(compiled_launcher, tmp
     assert result.returncode == 0, result.stderr
     assert b"one wake result" in result.stdout
     assert not wake.exists()
+    assert "journal-supervisor-reconcile event:failed_check:PSU-02" in (home / "docker-calls").read_text()
     state = json.loads((gateway_state / "journal-supervisor-transport/bridge-state.json").read_text())
     assert state["last_admission"] == "admitted"
     assert state["usage_settlement"] == "settled"
@@ -533,6 +543,30 @@ def test_launcher_keeps_case_proposal_state_after_cleanup(compiled_launcher, tmp
     calls = (home / "docker-calls").read_text()
     assert "down --timeout 3 --remove-orphans" in calls
     assert "--volumes" not in calls and " -v " not in calls
+
+
+def test_launcher_finishes_a_metered_case_after_the_driver_reads_an_empty_receipt(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    gateway_state = tmp_path / "gateway-state"
+    wake = gateway_state / "journal-supervisor-case-wake"
+    wake.write_text("event:failed_check:PSU-05\n")
+    wake.chmod(0o444)
+    (home / "receipt-pending").touch()
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode == 0, result.stderr
+    assert b"one wake result" in result.stdout
+    assert not wake.exists()
+    assert "journal-supervisor-reconcile event:failed_check:PSU-05" in (home / "docker-calls").read_text()
+    state = json.loads((gateway_state / "journal-supervisor-transport/bridge-state.json").read_text())
+    assert state["last_error"] == "receipt_pending"
+    assert state["metering"]["status"] == "known"
+    assert state["metering"]["provider_requests"] == 4
+    calls = (home / "docker-calls").read_text()
+    assert "down --timeout 3 --remove-orphans" in calls
 
 
 def test_launcher_finishes_a_staged_quiet_case_after_one_no_provider_admission(compiled_launcher, tmp_path):
@@ -550,12 +584,30 @@ def test_launcher_finishes_a_staged_quiet_case_after_one_no_provider_admission(c
     assert "one wake result" in result.stdout.decode()
     calls = (home / "docker-calls").read_text().splitlines()
     assert sum("/opt/journal-supervisor/bin/journal-supervisor-reconcile" in call for call in calls) == 1
+    assert any("journal-supervisor-reconcile quiet" in call for call in calls)
     assert not wake.exists()
     state = json.loads((gateway_state / "journal-supervisor-transport/bridge-state.json").read_text())
     assert state == {
         "last_admission": "quiet", "active_run": None, "receipt": None,
         "hook_attempts": 0, "metering": {"provider_requests": 0},
     }
+
+
+def test_launcher_passes_a_staged_scheduled_wake_to_reconcile(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    gateway_state = tmp_path / "gateway-state"
+    wake = gateway_state / "journal-supervisor-case-wake"
+    wake.write_text("scheduled\n")
+    wake.chmod(0o444)
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode == 0, result.stderr
+    calls = (home / "docker-calls").read_text().splitlines()
+    assert any("journal-supervisor-reconcile scheduled" in call for call in calls)
+    assert not wake.exists()
 
 
 def test_launcher_rejects_arguments_and_non_anthropic_input_without_starting_runtime(compiled_launcher, tmp_path):

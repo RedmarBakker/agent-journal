@@ -61,6 +61,7 @@ from supervisor_bridge.metering import (
     MeteringProxy,
     ProviderResponse,
 )
+from supervisor_bridge.proposal_evaluation import load_case, seed_case, wake_target
 from supervisor_bridge.state import StateStore
 from supervisor_bridge.transport import (
     AuthorizationError,
@@ -1768,8 +1769,12 @@ def test_reconcile_command_forwards_the_staged_event_wakeup(monkeypatch, tmp_pat
     monkeypatch.setattr(supervisor_main, "StateStore", lambda _directory: state)
     monkeypatch.setattr(supervisor_main, "configured_bridge", lambda received: Bridge() if received is state else None)
 
-    assert supervisor_main.run(["reconcile", "event", "failed_check", "PSU-02"]) == 0
-    assert calls == [(("hint",), {"wakeup_id": "PSU-02", "event_kind": "failed_check", "event_id": "PSU-02"})]
+    cases = Path(__file__).parents[1] / "docs/supervisor/v2/proposal-evaluation-cases.json"
+    wake = wake_target(seed_case(load_case(cases, "PSU-05")))
+    _event, event_kind, event_id = wake.split(":")
+
+    assert supervisor_main.run(["reconcile", "event", event_kind, event_id]) == 0
+    assert calls == [(("hint",), {"wakeup_id": "PSU-05", "event_kind": "failed_check", "event_id": "PSU-05"})]
     assert json.loads(capsys.readouterr().out) == {"status": "skipped", "reason": "empty"}
 
 

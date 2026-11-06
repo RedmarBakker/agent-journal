@@ -557,8 +557,13 @@ static bool case_result_complete(const char *path) {
         || strstr(compact, "\"last_admission\":\"needs_owner\"")
     ) && strstr(compact, "\"active_run\":null") && strstr(compact, "\"receipt\":null")
         && strstr(compact, "\"hook_attempts\":0") && provider_request_count(compact) == 0;
+    bool terminal_no_receipt = strstr(compact, "\"last_error\":\"receipt_pending\"")
+        && strstr(compact, "\"hook_status\":\"acknowledged\"")
+        && strstr(compact, "\"active_run\":{") && strstr(compact, "\"receipt\":null")
+        && strstr(compact, "\"status\":\"known\"")
+        && strstr(compact, "\"pending_request\":null") && provider_request_count(compact) > 0;
     free(compact);
-    return terminal_receipt || terminal_skip;
+    return terminal_receipt || terminal_skip || terminal_no_receipt;
 }
 
 static bool smoke_complete(const char *path, SmokeMode mode) {
@@ -570,6 +575,33 @@ static bool staged_case(const char *gateway_state) {
     struct stat details;
     return path_join(path, sizeof(path), gateway_state, "journal-supervisor-case-wake")
         && lstat(path, &details) == 0 && S_ISREG(details.st_mode) && (details.st_mode & 0222) == 0;
+}
+
+static bool valid_case_wake(const char *value) {
+    if (strcmp(value, "scheduled") == 0 || strcmp(value, "quiet") == 0) return true;
+    if (strncmp(value, "event:", 6) != 0) return false;
+    const char *kind = value + 6;
+    const char *separator = strchr(kind, ':');
+    if (!separator || strchr(separator + 1, ':')) return false;
+    if (separator == kind || (size_t)(separator - kind) > 64) return false;
+    for (const char *cursor = kind; cursor < separator; cursor++) {
+        if (!(*cursor >= 'a' && *cursor <= 'z') && *cursor != '_') return false;
+    }
+    const char *case_id = separator + 1;
+    return strlen(case_id) == 6 && strncmp(case_id, "PSU-", 4) == 0
+        && isdigit((unsigned char)case_id[4]) && isdigit((unsigned char)case_id[5]);
+}
+
+static bool read_case_wake(const char *gateway_state, char *value, size_t capacity) {
+    char path[MAX_PATH_BYTES], *contents = NULL;
+    if (!path_join(path, sizeof(path), gateway_state, "journal-supervisor-case-wake")
+        || read_file(path, &contents, 128) != 0) return false;
+    size_t length = strlen(contents);
+    if (length && contents[length - 1] == '\n') contents[--length] = 0;
+    bool valid = length < capacity && valid_case_wake(contents);
+    if (valid) memcpy(value, contents, length + 1);
+    free(contents);
+    return valid;
 }
 
 static void remove_case_wake(const char *gateway_state) {
@@ -725,7 +757,7 @@ static int wait_until(pid_t child, struct timespec deadline, const char *receipt
 
 typedef enum { COMPOSE_READY, COMPOSE_UP, COMPOSE_DOWN, COMPOSE_GATEWAY_HEALTH, COMPOSE_RECONCILE } ComposeAction;
 
-static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state);
+static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state, SmokeMode mode);
 
 static int wait_for_smoke(pid_t child, struct timespec deadline, const char *receipt_path,
                           const char *secret_directory, const char *gateway_state, SmokeMode mode) {
@@ -751,7 +783,7 @@ static int wait_for_smoke(pid_t child, struct timespec deadline, const char *rec
         if (!reconcile_started && now.tv_sec > last_gateway_probe) {
             last_gateway_probe = now.tv_sec;
             struct timespec health_deadline = earlier_deadline(deadline, deadline_after(GATEWAY_HEALTH_TIMEOUT_SECONDS));
-            pid_t health = start_compose(COMPOSE_GATEWAY_HEALTH, secret_directory, gateway_state);
+            pid_t health = start_compose(COMPOSE_GATEWAY_HEALTH, secret_directory, gateway_state, mode);
             if (health < 0) return stop_child_now(child, 127);
             int gateway_ready = wait_until(health, health_deadline, NULL);
             clock_gettime(CLOCK_MONOTONIC, &now);
@@ -760,7 +792,7 @@ static int wait_for_smoke(pid_t child, struct timespec deadline, const char *rec
             if (gateway_ready == 0) {
                 reconcile_started = true;
                 struct timespec reconcile_deadline = earlier_deadline(deadline, deadline_after(RECONCILE_TIMEOUT_SECONDS));
-                pid_t reconcile = start_compose(COMPOSE_RECONCILE, secret_directory, gateway_state);
+                pid_t reconcile = start_compose(COMPOSE_RECONCILE, secret_directory, gateway_state, mode);
                 if (reconcile < 0) return stop_child_now(child, 127);
                 int reconciled = wait_until(reconcile, reconcile_deadline, NULL);
                 if (reconciled != 0) return stop_child_now(child, reconciled);
@@ -771,7 +803,7 @@ static int wait_for_smoke(pid_t child, struct timespec deadline, const char *rec
     return stop_child_now(child, stop_requested ? 128 : 124);
 }
 
-static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state) {
+static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state, SmokeMode mode) {
     char *up_arguments[] = {
         "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
         "-f", COMPOSE_FILE, "--profile", "authorized-staging", "up", "--no-build",
@@ -798,11 +830,24 @@ static pid_t start_compose(ComposeAction action, const char *secret_directory, c
         "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T", "gateway",
         "/opt/journal-supervisor/bin/journal-supervisor-reconcile", NULL,
     };
+    char case_wake[128];
+    char *case_reconcile_arguments[] = {
+        "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
+        "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T", "gateway",
+        "/opt/journal-supervisor/bin/journal-supervisor-reconcile", case_wake, NULL,
+    };
     char **arguments = up_arguments;
     if (action == COMPOSE_DOWN) arguments = down_arguments;
     else if (action == COMPOSE_READY) arguments = ready_arguments;
     else if (action == COMPOSE_GATEWAY_HEALTH) arguments = gateway_health_arguments;
-    else if (action == COMPOSE_RECONCILE) arguments = reconcile_arguments;
+    else if (action == COMPOSE_RECONCILE) {
+        if (mode == EVALUATION_CASE) {
+            if (!read_case_wake(gateway_state, case_wake, sizeof(case_wake))) return -1;
+            arguments = case_reconcile_arguments;
+        } else {
+            arguments = reconcile_arguments;
+        }
+    }
     pid_t child = fork();
     if (child < 0) return -1;
     if (child == 0) {
@@ -823,7 +868,7 @@ static pid_t start_compose(ComposeAction action, const char *secret_directory, c
 static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state,
                   int timeout, SmokeMode mode) {
     struct timespec deadline = deadline_after(timeout);
-    pid_t child = start_compose(action, secret_directory, gateway_state);
+    pid_t child = start_compose(action, secret_directory, gateway_state, mode);
     if (child < 0) return 127;
     char receipt_path[MAX_PATH_BYTES];
     const char *wait_path = NULL;

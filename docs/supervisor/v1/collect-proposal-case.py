@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -68,10 +69,16 @@ def append_once(path: Path, row: dict) -> None:
 
 def main():
     args = parse_args()
-    load_case(EVALUATION_PROFILE / "proposal-evaluation-cases.json", args.case_id)
+    case = load_case(EVALUATION_PROFILE / "proposal-evaluation-cases.json", args.case_id)
     bridge_path = args.bridge_state or bridge_state_path(args.env_file)
     bridge_state = json.loads(bridge_path.read_text(encoding="utf-8")) if bridge_path.is_file() else {}
-    row = result_row(args.case_id, bridge_state, writer_rows(args.env_file))
+    bridge_state_updated_at = (
+        datetime.fromtimestamp(bridge_path.stat().st_mtime, timezone.utc) if bridge_path.is_file() else None
+    )
+    row = result_row(
+        args.case_id, bridge_state, writer_rows(args.env_file), bridge_state_updated_at,
+        case["wake_up"]["kind"],
+    )
     append_once(args.results, row)
     print(f"appended raw result for {args.case_id}: {row['outcome']['result']}")
 

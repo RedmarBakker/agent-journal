@@ -1,12 +1,21 @@
 from collections import Counter
 from copy import deepcopy
+from datetime import datetime
 import json
 from pathlib import Path
 
 import pytest
 
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
-from supervisor_bridge.proposal_evaluation import load_case, load_seed, result_row, seed_case, wake_target
+from supervisor_bridge.proposal_evaluation import (
+    case_check_marker,
+    case_task_specs,
+    load_case,
+    load_seed,
+    result_row,
+    seed_case,
+    wake_target,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -76,6 +85,28 @@ def test_case_wake_target_preserves_scheduled_event_and_quiet_kinds():
     for case_id, target in targets.items():
         seed = seed_case(load_case(CASES, case_id))
         assert wake_target(seed) == target
+
+
+def test_psu04_seeds_a_reserved_open_task_beside_the_bound_drivers_diagnostic():
+    seed = seed_case(load_case(CASES, "PSU-04"))
+    tasks = case_task_specs(seed)
+
+    assert seed["tasks"]["diagnostic"] == "matching_started_by_bound_driver"
+    assert seed["tasks"]["eligibility_anchor"]["title"] == "Keep supervisor case PSU-04 eligible for enrollment"
+    assert len(tasks) == 2
+    assert tasks[0]["title"] == seed["tasks"]["title"]
+    assert tasks[0]["supervisor_reserved"] is False
+    assert tasks[1]["title"] == seed["tasks"]["eligibility_anchor"]["title"]
+    assert tasks[1]["supervisor_reserved"] is True
+
+
+def test_latest_run_passed_check_reads_setup_state_without_changing_it():
+    seed = seed_case(load_case(CASES, "PSU-06"))
+    marker = str(case_check_marker("PSU-06"))
+
+    assert "touch" not in seed["checks"]["command"]
+    assert marker in seed["checks"]["command"]
+    assert "if [ -e" in seed["checks"]["command"]
 
 
 def test_writer_seed_rejects_reference_outcomes_and_reviewer_labels(tmp_path):
@@ -157,6 +188,16 @@ def test_result_row_reads_quiet_wakeup_without_provider_or_receipt():
     assert row["latency_seconds"] is None
 
 
+def test_result_row_preserves_quiet_case_wakeup_when_admission_skips_quiet():
+    row = result_row(
+        "PSU-23", {"last_admission": "quiet", "metering": {"provider_requests": 0}},
+        [], case_wake_kind="quiet",
+    )
+
+    assert row["outcome"]["wake_kind"] == "quiet"
+    assert row["outcome"]["admission"] == "quiet"
+
+
 def test_result_row_records_an_admitted_run_without_a_command_as_abstained():
     writer_rows = [
         {
@@ -208,3 +249,37 @@ def test_result_row_records_a_bridge_refusal_without_an_action_receipt():
     assert row["outcome"]["result"] == "refused"
     assert row["outcome"]["action_status"] == ""
     assert row["failure"] == "service_rejected: grant_revoked"
+
+
+def test_result_row_uses_bridge_metering_and_final_state_time_without_a_writer_usage_row():
+    bridge_state = {
+        "last_admission": "admitted",
+        "last_error": "receipt_pending",
+        "metering": {
+            "run_ref": {"run_id": "run-unreceipted"},
+            "status": "known",
+            "provider_requests": 4,
+            "pending_request": None,
+            "input_tokens": 100,
+            "output_tokens": 20,
+            "cache_creation_input_tokens": 50,
+            "cache_read_input_tokens": 25,
+        },
+    }
+    writer_rows = [{
+        "id": 60,
+        "entry_type": "SupervisorRun",
+        "created_at": "2026-11-06T12:00:00+00:00",
+        "data": {"run_ref": "run-unreceipted", "wake_kind": "event", "event_kind": "failed_check"},
+    }]
+
+    row = result_row(
+        "PSU-05", bridge_state, writer_rows,
+        datetime.fromisoformat("2026-11-06T12:00:30+00:00"),
+    )
+
+    assert row["outcome"]["result"] == "abstained"
+    assert row["outcome"]["provider_requests"] == 4
+    assert row["outcome"]["wake_kind"] == "event"
+    assert row["latency_seconds"] == 30
+    assert row["actual_cost_usd"] == "0.000605"

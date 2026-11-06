@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import stat
 import sys
 import time
 from pathlib import Path
@@ -16,6 +17,7 @@ from journal.db.connection import Connection
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
+from journal.models.support.ref import Ref
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
@@ -28,7 +30,7 @@ from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_link import SupervisorLink
-from supervisor_bridge.proposal_evaluation import load_seed
+from supervisor_bridge.proposal_evaluation import case_check_marker, case_task_specs, load_seed
 
 ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
@@ -153,12 +155,20 @@ def setup_plan_matches(plan, phases, tasks, seed=None):
 
 
 def smoke_tasks_match(tasks, seed=None):
+    if seed is not None:
+        specs = case_task_specs(seed)
+        if len(tasks) != len(specs):
+            return False
+        return all(
+            task.title == spec["title"] and task.brief == spec["brief"]
+            and task.supervisor_reserved == spec["supervisor_reserved"]
+            and (task.state == TaskState.OPEN if spec["supervisor_reserved"]
+                 else task.state in {TaskState.OPEN, TaskState.STARTED})
+            for task, spec in zip(tasks, specs, strict=True)
+        )
     if len(tasks) != 1:
         return False
     task, = tasks
-    if seed is not None:
-        return (task.title == seed["tasks"]["title"] and task.brief == seed["tasks"]["brief"]
-                and task.state == TaskState.OPEN and task.supervisor_reserved)
     return (task.title == TASK_TITLE and task.brief == TASK_BRIEF
             and task.state == TaskState.OPEN and task.supervisor_reserved)
 
@@ -245,10 +255,12 @@ def make_case_plan(app, seed):
     plan_id = row_number(command("plan", "create", seed["plan"]["title"], "--brief", seed["plan"]["brief"]), r"plan (\d+) draft")
     command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
     command("plan", "phase", str(plan_id), f"Evaluation phase {seed['case_id']}", "--when", PHASE_COMPLETION)
-    task_id = row_number(command("plan", "add", str(plan_id), seed["tasks"]["title"], "--brief", seed["tasks"]["brief"], "--phase", "1"), r"task (\d+) added to plan .+")
-    status, _headers, task = request(f"/journal/tasks/{task_id}", {"supervisor_reserved": True})
-    if status != 200 or task.get("supervisor_reserved") is not True:
-        raise SetupFailure("the owner could not reserve the evaluation task for supervisor diagnosis")
+    for task_spec in case_task_specs(seed):
+        task_id = row_number(command("plan", "add", str(plan_id), task_spec["title"], "--brief", task_spec["brief"], "--phase", "1"), r"task (\d+) added to plan .+")
+        if task_spec["supervisor_reserved"]:
+            status, _headers, task = request(f"/journal/tasks/{task_id}", {"supervisor_reserved": True})
+            if status != 200 or task.get("supervisor_reserved") is not True:
+                raise SetupFailure("the owner could not reserve the evaluation task for supervisor diagnosis")
     check_id = row_number(command("check", "create", seed["checks"]["title"], "--command", seed["checks"]["command"], "--brief", seed["checks"]["brief"], "--every", "10"), r"check (\d+): .+")
     template_id = row_number(command("template", "create", TEMPLATE_TITLE, "--brief", TEMPLATE_BRIEF, "--applies-to", "plan", "--purpose", TEMPLATE_PURPOSE), r"template (\d+): .+")
     command("settings", "set", "plans.plan_agents", "on")
@@ -258,7 +270,7 @@ def make_case_plan(app, seed):
     return plan_id, check_id, template_id
 
 
-def ensure_smoke_task(app, main, plan_id, seed=None):
+def ensure_smoke_task(app, main, plan_id, seed=None, driver=None):
     app.container.get(Connection).cache.cleared()
     scope = app.container.get(Scope)
     plans = app.container.get(Plans)
@@ -267,12 +279,25 @@ def ensure_smoke_task(app, main, plan_id, seed=None):
         plan = plans.find(plan_id)
         tasks = plans.plan_tasks(plan)
         rows_match = smoke_tasks_match(tasks) if seed is None else smoke_tasks_match(tasks, seed)
-        task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and tasks[0].supervisor_reserved and not tasks[0].delegated
-                       and tasks_repo.holder(tasks[0]) is None
-                       and not tasks_repo.unavailable_task_ids(tasks))
-        no_task_in_hand = plans.started_task(plan) is None
-    if not rows_match or not task_unheld or not no_task_in_hand:
-        raise SetupFailure("the live Plan driver must stay idle with one open, unheld diagnostic task")
+        if seed and seed["tasks"]["diagnostic"] == "matching_started_by_bound_driver":
+            anchor = tasks[1] if len(tasks) == 2 else None
+            started = plans.started_task(plan)
+            driver_owns_task = bool(
+                driver and started == tasks[0] and tasks_repo.holder(tasks[0]) == Ref.build(driver)
+            ) if len(tasks) == 2 else False
+            task_unheld = bool(
+                anchor and anchor.state == TaskState.OPEN and anchor.supervisor_reserved and not anchor.delegated
+                and tasks_repo.holder(anchor) is None and not tasks_repo.unavailable_task_ids([anchor])
+            )
+            valid_plan_driver_work = driver_owns_task
+        else:
+            task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and tasks[0].supervisor_reserved and not tasks[0].delegated
+                           and tasks_repo.holder(tasks[0]) is None
+                           and not tasks_repo.unavailable_task_ids(tasks))
+            no_task_in_hand = plans.started_task(plan) is None
+            valid_plan_driver_work = no_task_in_hand
+    if not rows_match or not task_unheld or not valid_plan_driver_work:
+        raise SetupFailure("the staged Plan driver tasks do not match the supervisor evaluation case")
 
 
 def run_bound_check(check_id, seed=None):
@@ -282,10 +307,26 @@ def run_bound_check(check_id, seed=None):
 
 
 def run_case_checks(check_id, seed):
-    for verdict in seed["checks"]["results"]:
-        output = command("check", "run", str(check_id), expected_code=1 if verdict == "failed" else 0)
-        if not output.startswith(f"check {check_id} {verdict}:"):
-            raise SetupFailure("the evaluation check did not produce its seeded result")
+    marker = case_check_marker(seed["case_id"]) if seed["checks"]["condition"] == "latest_run_passed" else None
+    if marker:
+        marker.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        directory = marker.parent.stat(follow_symlinks=False)
+        if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.geteuid()
+                or stat.S_IMODE(directory.st_mode) & 0o077):
+            raise SetupFailure("the staged check-state directory must be private to the writer")
+        marker.unlink(missing_ok=True)
+    try:
+        for verdict in seed["checks"]["results"]:
+            if marker and verdict == "passed":
+                descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                os.close(descriptor)
+            output = command("check", "run", str(check_id), expected_code=1 if verdict == "failed" else 0)
+            if not output.startswith(f"check {check_id} {verdict}:"):
+                raise SetupFailure("the evaluation check did not produce its seeded result")
+    finally:
+        if marker:
+            marker.unlink(missing_ok=True)
+            marker.parent.rmdir()
 
 
 def wait_for_codex_plan(app, plan_id, environment_id):
@@ -397,8 +438,8 @@ def main():
     app = App(Config.rooted(ROOT))
     main = wait_for_owner_runtime(app)
     plan_id, check_id, template_id = make_plan(app, main, seed)
-    wait_for_codex_plan(app, plan_id, main.row_id)
-    ensure_smoke_task(app, main, plan_id, seed)
+    driver = wait_for_codex_plan(app, plan_id, main.row_id)
+    ensure_smoke_task(app, main, plan_id, seed, driver)
     status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id, seed))
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""
@@ -414,12 +455,12 @@ def main():
     try:
         if seed:
             grant_version = configure_v2_grant(answer, seed)
-        ensure_smoke_task(app, main, plan_id, seed)
+        ensure_smoke_task(app, main, plan_id, seed, driver)
         if seed is None:
             run_bound_check(check_id)
         else:
             run_case_checks(check_id, seed)
-        ensure_smoke_task(app, main, plan_id, seed)
+        ensure_smoke_task(app, main, plan_id, seed, driver)
         write_token(token)
         if seed and (seed["plan"]["state"] == "started_paused" or seed["plan"]["owner_gate"] != "none"):
             command("plan", "pause", str(plan_id))

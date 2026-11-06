@@ -3,29 +3,38 @@ set -eu
 
 . /opt/journal-supervisor/bin/journal-supervisor-environment
 
-case_wake_file="${JOURNAL_SUPERVISOR_STATE_DIR%/*}/journal-supervisor-case-wake"
-if [ -r "$case_wake_file" ]; then
-    case_wake=$(cat "$case_wake_file")
-    case "$case_wake" in
-        scheduled|quiet)
-            exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile
-            ;;
-        event:*:PSU-[0-9][0-9])
-            event_kind=${case_wake#event:}
-            event_kind=${event_kind%:*}
-            case "$event_kind" in
-                ''|*[!a-z_]*)
-                    echo "the staged supervisor case has an unsupported event wake kind" >&2
-                    exit 2
-                    ;;
-            esac
-            event_id=${case_wake##*:}
-            exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile event "$event_kind" "$event_id"
-            ;;
-        *)
-            echo "the staged supervisor case has an unsupported wake kind" >&2
-            exit 2
-            ;;
-    esac
+if [ "$#" -gt 1 ]; then
+    echo "journal-supervisor-reconcile accepts no arguments or one staged wake" >&2
+    exit 2
 fi
-exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile
+if [ "$#" -eq 1 ]; then
+    case_wake=$1
+else
+    case_wake_file="${JOURNAL_SUPERVISOR_STATE_DIR%/*}/journal-supervisor-case-wake"
+    if [ ! -r "$case_wake_file" ]; then
+        exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile
+    fi
+    case_wake=$(cat "$case_wake_file")
+fi
+
+case "$case_wake" in
+    scheduled|quiet)
+        exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile
+        ;;
+    event:*:PSU-[0-9][0-9])
+        event_kind=${case_wake#event:}
+        event_kind=${event_kind%:*}
+        case "$event_kind" in
+            ''|*[!a-z_]*)
+                echo "the staged supervisor case has an unsupported event wake kind" >&2
+                exit 2
+                ;;
+        esac
+        event_id=${case_wake##*:}
+        exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile event "$event_kind" "$event_id"
+        ;;
+    *)
+        echo "the staged supervisor case has an unsupported wake kind" >&2
+        exit 2
+        ;;
+esac
