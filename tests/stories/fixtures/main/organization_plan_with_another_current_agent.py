@@ -3,6 +3,7 @@ from journal.models.agent import Agent
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 from tests.stories.fixtures.main.idle_organization_plan_seat import IdleOrganizationPlanSeat
 
 
@@ -17,5 +18,6 @@ class OrganizationPlanWithAnotherCurrentAgent(IdleOrganizationPlanSeat):
         story.app.container.get(Agents).save(Agent(
             environment_id=environment.row_id, session="unrelated-seat-session", provider=story.provider,
             state=floor.name, data=floor.serialized(), stack=({"state": floor.name, "data": floor.serialized()},),
+            session_started_at=story.app.container.get(TimeSource).moment(),
         ), Actor.system())
         story.observed("a newer unrelated agent is present beside the Plan seat", None, None)

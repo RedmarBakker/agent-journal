@@ -15,7 +15,7 @@ class Agents(ScopedRepository[Agent]):
     model = Agent
 
     def current(self) -> Agent | None:
-        responsive = self.selected(self.unended_query().filter(role=AgentRole.MAIN).order_descending("id").limit(1))
+        responsive = self.selected(self.unended_query().filter(role=AgentRole.MAIN).order_descending("session_started_at").order_descending("id").limit(1))
         return responsive[0] if responsive else None
 
     def all_agents(self) -> list[Agent]:
