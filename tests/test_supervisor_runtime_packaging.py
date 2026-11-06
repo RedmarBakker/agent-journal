@@ -579,7 +579,7 @@ def test_live_provider_request_cap_is_persisted_in_the_owner_grant():
     assert "max_provider_requests_per_turn" not in bridge_environment
     assert "12 request, one-turn" in runbook
     assert "already enrolled 8-request grant stays at 8" in runbook
-    assert "no Gateway or launcher rebuild fixes an old persisted grant" in runbook
+    assert "No Gateway or OpenClaw tool-list rebuild changes an existing grant" in runbook
     assert "12 requests" in report
     assert "journal__journal_supervisor-observe" in report
     assert "journal__journal_supervisor-run_or_propose" in report
