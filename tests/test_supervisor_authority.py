@@ -541,13 +541,22 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
     from journal.http.server import Server
     from journal.support.time_source import TimeSource
     from supervisor_bridge.bridge import SupervisorBridge
-    from supervisor_bridge.contracts import RunReference, TOOL_NAMES
+    from supervisor_bridge.contracts import RECEIPT_TOOL, RunReference, TOOL_NAMES
     from supervisor_bridge.mcp import McpServer
     from supervisor_bridge.state import StateStore
-    from supervisor_bridge.transport import JsonHttpConnection, SupervisorHttpClient
+    from supervisor_bridge.transport import JsonHttpConnection, ReceiptNotFound, SupervisorHttpClient
 
     fixture = authority_fixture
-    grant, token, principal = admitted(fixture, "bounded_write")
+    grant, token, _principal = admitted(fixture, "bounded_write")
+    grant_entry = fixture.authority._latest_entry(grant["grant_id"])
+    grant, _ = fixture.authority.change(fixture.owner, {
+        "protocol_version": 1,
+        "grant_id": grant["grant_id"],
+        "expected_grant_version": grant["grant_version"],
+        "change": {"kind": "configure", "grant": grant_entry.data["grant_v2"]},
+    })
+    principal = fixture.authority.authenticate(token)
+    assert grant["grant_version"] == 2
     observations = app.container.get(SupervisorObservations)
     time_source = app.container.get(TimeSource)
     time_source.pin(time_source.seconds() + 15 * 60)
@@ -580,9 +589,15 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
 
         state = StateStore(tmp_path / "bridge")
         state.record_admitted(RunReference.from_run(run))
-        mcp = McpServer(SupervisorBridge(
+        bridge = SupervisorBridge(
             SupervisorHttpClient(JsonHttpConnection(f"http://127.0.0.1:{server.port}", token)), state,
-        ))
+        )
+        mcp = McpServer(bridge)
+        run_reference = RunReference.from_run(run)
+        with pytest.raises(ReceiptNotFound):
+            bridge.receipt(run_reference.to_dict())
+        pending = state.snapshot()
+        assert pending["health"] == "up" and pending["last_error"] == "receipt_pending", pending
         observed = mcp.handle({
             "jsonrpc": "2.0", "id": "observe", "method": "tools/call",
             "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RunReference.from_run(run).to_dict()}},
@@ -620,11 +635,24 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
                 {"ref": {"table": "phases", "id": snapshot["current_phase"]["phase_id"]},
                     "revision": snapshot["current_phase"]["revision"]},
             ],
-            "operations": [{"kind": "plan_priorities", "plan_id": grant["plan_id"], "text": "Investigate the failed check"}],
+            "operations": [{"kind": "diagnostic_task", "plan_id": grant["plan_id"],
+                "phase_id": snapshot["current_phase"]["phase_id"],
+                "template_id": grant["diagnostic_template_id"],
+                "template_revision": grant["diagnostic_template_revision"],
+                "evidence_ids": [evidence["observation_id"]]}],
             "rationale": "Record a bounded diagnostic priority.",
         }
         status, applied = _post_supervisor_http(server.port, "/_supervisor/v1/apply", action, token, caller_scope_headers)
         assert status == 200 and applied["status"] == "applied", applied
+
+        current_entry = fixture.authority._latest_entry(grant["grant_id"])
+        grant, _ = fixture.authority.change(fixture.owner, {
+            "protocol_version": 1,
+            "grant_id": grant["grant_id"],
+            "expected_grant_version": grant["grant_version"],
+            "change": {"kind": "configure", "grant": current_entry.data["grant_v2"]},
+        })
+        assert grant["grant_version"] == 3
 
         status, receipt = _post_supervisor_http(server.port, "/_supervisor/v1/receipt", {
             "protocol_version": 1, "action_id": action["action_id"],
@@ -632,7 +660,15 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
         assert status == 200 and receipt["status"] == "applied", receipt
         assert receipt["receipt_id"] == applied["receipt_id"]
         assert receipt["data"]["action_id"] == action["action_id"]
+        assert receipt["data"]["grant_version"] == 2
         assert receipt["data"]["verification"] == "verified"
+        read_result = mcp.handle({
+            "jsonrpc": "2.0", "id": "receipt", "method": "tools/call",
+            "params": {"name": RECEIPT_TOOL, "arguments": {"run_ref": run_reference.to_dict()}},
+        })["result"]
+        assert read_result["isError"] is False, read_result
+        read_receipt = json.loads(read_result["content"][0]["text"])
+        assert read_receipt["status"] == "applied" and read_receipt["grant_version"] == 2
 
         other_tenant = seeded(app, 2)
         other_grant, other_token, _ = admitted(other_tenant, "bounded_write")

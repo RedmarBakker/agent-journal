@@ -25,7 +25,7 @@ def test_a_changed_thirty_minute_interval_controls_the_next_scheduled_wake(story
     expect_grant_covers_plan(story)
     first = scheduled_wake(story)
     first.expect_viewer_passed()
-    first.expect_viewer_part(("reason",), "quiet")
+    first.expect_viewer_part(("reason",), "empty")
 
     control = story.user_opens_in(
         story.fixture.supervisor_owner_environment,
@@ -56,7 +56,7 @@ def test_a_changed_sixty_minute_interval_controls_the_next_scheduled_wake(story)
     expect_grant_covers_plan(story)
     first = scheduled_wake(story)
     first.expect_viewer_passed()
-    first.expect_viewer_part(("reason",), "quiet")
+    first.expect_viewer_part(("reason",), "empty")
 
     changed = change_interval(story, 1, 60)
     changed.expect_viewer_passed()

@@ -277,9 +277,16 @@ class SupervisorActionReports:
         with self.scope.environment(PROJECT):
             rows = self.entries.supervisor_records(
                 "SupervisorActionReceipt", last=100, grant_id=principal.grant_id,
-                grant_version=principal.grant_version, action_id=action_id,
+                action_id=action_id,
             )
-        if not rows or rows[0].data.get("scope") != principal.scope:
+            if not rows:
+                other_grants = self.entries.supervisor_records(
+                    "SupervisorActionReceipt", last=100, action_id=action_id,
+                )
+                if other_grants:
+                    raise SupervisorFailure(403, "supervisor receipt is not available")
+                raise SupervisorFailure(404, "supervisor receipt is not available yet")
+        if rows[0].data.get("scope") != principal.scope:
             raise SupervisorFailure(403, "supervisor receipt is not available")
         return rows[0]
 

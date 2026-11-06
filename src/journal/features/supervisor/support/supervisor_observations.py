@@ -127,8 +127,6 @@ class SupervisorObservations:
             result = self._skipped("quiet")
         else:
             result = self._admit(principal, grant, request)
-            if last_wake is None and result.get("reason") == "empty":
-                result = self._skipped("quiet")
         self.wake_schedule.record(
             principal, grant, interval, wake_at_ms, request["observation_cursor"], row_event_marker, result,
         )
