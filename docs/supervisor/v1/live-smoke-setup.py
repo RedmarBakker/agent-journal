@@ -376,7 +376,7 @@ def write_token(token):
     os.chmod(TOKEN_FILE, 0o400)
 
 
-def revoke(grant_id, expected_version=1):
+def revoke_version(grant_id, expected_version):
     status, _headers, answer = request("/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": grant_id,
@@ -403,9 +403,13 @@ def main():
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""
     grant_version = answer.get("grant_version", 1) if isinstance(answer, dict) else 1
+
+    def revoke(grant_id):
+        return revoke_version(grant_id, grant_version)
+
     if status != 201 or not grant_id or not token:
         if grant_id:
-            revoke(grant_id, grant_version)
+            revoke(grant_id)
         raise SetupFailure("the staged journal refused fixed local-owner enrollment")
     try:
         if seed:
@@ -420,9 +424,9 @@ def main():
         if seed and (seed["plan"]["state"] == "started_paused" or seed["plan"]["owner_gate"] != "none"):
             command("plan", "pause", str(plan_id))
         if seed and seed["grant"] == "revoked":
-            grant_version = revoke(grant_id, grant_version)
+            grant_version = revoke(grant_id)
     except (OSError, SetupFailure) as error:
-        revoke(grant_id, grant_version)
+        revoke(grant_id)
         raise SetupFailure("the enrollment credential could not be stored safely; the grant was revoked") from error
 
 
