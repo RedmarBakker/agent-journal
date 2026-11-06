@@ -41,7 +41,7 @@ async function until(done) {
     await nextTick();
 }
 
-test("the Board page puts every plan in its shared four phase board with details and a plan link", async () => {
+test("the Board page puts every plan in its unscheduled sprint group across four phases with details and a plan link", async () => {
     expect(PAGES).toContain("board");
     host = document.body.appendChild(document.createElement("div"));
     app = createApp({render: () => h(AppPages, {page: "board"})});
@@ -49,11 +49,15 @@ test("the Board page puts every plan in its shared four phase board with details
     await until(() => host.querySelector('[data-plan-id="1"]'));
 
     expect(api.organization).toHaveBeenCalledOnce();
-    expect(host.querySelectorAll(".organization-domain-board")).toHaveLength(1);
-    expect(host.querySelectorAll(".organization-domain-board-head")).toHaveLength(0);
-    expect(host.querySelectorAll(".organization-board-lane")).toHaveLength(4);
-    expect(host.querySelectorAll(".organization-plan-card")).toHaveLength(plans.length);
-    expect([...host.querySelectorAll(".organization-board-lane")].map((lane) => lane.dataset.phase)).toEqual(["planned", "in_progress", "in_review", "done"]);
+    expect(host.querySelectorAll(".organization-domain-board")).toHaveLength(0);
+    expect(host.querySelectorAll(".organization-sprint-board")).toHaveLength(1);
+    const board = host.querySelector(".organization-sprint-board");
+    expect(board.querySelectorAll("[data-sprint-group]")).toHaveLength(1);
+    const unscheduled = board.querySelector('[data-sprint-group][data-sprint-id="none"]');
+    expect(unscheduled).not.toBeNull();
+    expect(unscheduled.querySelectorAll(".organization-board-lane")).toHaveLength(4);
+    expect(unscheduled.querySelectorAll(".organization-plan-card")).toHaveLength(plans.length);
+    expect([...unscheduled.querySelectorAll(".organization-board-lane")].map((lane) => lane.dataset.phase)).toEqual(["planned", "in_progress", "in_review", "done"]);
     for (const [phase, title] of [["planned", "A planned report"], ["in_progress", "A running report"], ["in_review", "A report in review"], ["done", "A finished report"]]) {
         expect(host.querySelectorAll(`[data-phase="${phase}"] .organization-plan-card`)).toHaveLength(1);
         expect(host.querySelector(`[data-phase="${phase}"] .organization-plan-card`).textContent).toContain(title);
