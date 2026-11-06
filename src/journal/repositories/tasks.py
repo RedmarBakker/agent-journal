@@ -173,7 +173,13 @@ class Tasks(ScopedRepository[Task]):
         return [(task, check) for check in self.checks.broken_waits() for task in self.waiting_refs(check)]
 
     def waiting_refs(self, model) -> list[Task]:
-        return [task for ref in self.links.sources(model, WAIT_LINK) if ref.type == Task.table() and (task := self.find(ref.id)).state == TaskState.BLOCKED]
+        refs = [ref for ref in self.links.sources(model, WAIT_LINK) if ref.type == Task.table()]
+        tasks = self.selected_globally(self.query().filter_listed("id", [ref.id for ref in refs])) if refs else []
+        by_id = {task.id: task for task in tasks}
+        for ref in refs:
+            if ref.id not in by_id:
+                raise MissingRow(self.table, ref.id)
+        return [by_id[ref.id] for ref in refs if by_id[ref.id].state == TaskState.BLOCKED]
 
     def reason(self, row: Task | Plan) -> str:
         matched = [f"{ref.type[:-1]} {ref.id}" for ref in self.links.targets(row, WAIT_LINK)]

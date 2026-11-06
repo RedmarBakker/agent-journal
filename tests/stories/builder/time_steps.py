@@ -3,10 +3,12 @@ import json
 from datetime import datetime
 
 from journal.engine.clock import Clock
+from journal.events.bus import Bus
 from journal.features.shell.jobs.watch_refresh import WatchRefresh
 from journal.providers.codex import Codex
 from journal.support.heartbeat import Heartbeat
 from tests.agent_hooks import pass_time, silent_tick, story_seconds
+from tests.stories.builder.check_run_wait import CheckRunWait
 from tests.stories.builder.step_result import StepResult
 
 # the context window a Codex session's rollout reports in a story
@@ -55,6 +57,12 @@ class TimeSteps:
         self.app.container.get(Clock).tick(at)
         self.app.runtime().deferred.drain()
         return self.observed(f"the clock ticks {seconds} seconds later", None, None)
+
+    def scheduled_check_passes(self, check: int) -> StepResult:
+        waiting = CheckRunWait(self.app.container.get(Bus), check)
+        self.clock_ticks(60)
+        waiting.wait()
+        return self.observed("the scheduled check passes", None, None)
 
     def running_commands_are_read_again(self, seconds: float) -> StepResult:
         pass_time(self.app, seconds)
