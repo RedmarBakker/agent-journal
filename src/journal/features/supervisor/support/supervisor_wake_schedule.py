@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any
 
 from journal.features.supervisor.support.supervisor_environment_reader import SupervisorEnvironmentReader
@@ -23,17 +22,23 @@ class SupervisorWakeSchedule:
     def interval_minutes(self, principal: SupervisorPrincipal) -> int:
         return self.authority.observation_permissions(principal).wake_interval_minutes
 
-    def is_due(self, principal: SupervisorPrincipal, grant: dict[str, Any], interval_minutes: int,
-               wake_at_ms: int) -> bool:
-        last = self._last_wake(principal, grant)
-        anchor = last.data.get("wake_at_ms") if last else self._grant_created_at(principal, grant)
+    def last_wake(self, principal: SupervisorPrincipal, grant: dict[str, Any]) -> Entry | None:
+        with self.scope.environment(PROJECT):
+            rows = self.entries.supervisor_records(
+                "SupervisorWake", last=1,
+                tenant_id=principal.scope["tenant_id"], grant_id=grant["grant_id"], wake_kind="scheduled",
+            )
+        return rows[0] if rows else None
+
+    def is_due(self, last: Entry | None, interval_minutes: int, wake_at_ms: int) -> bool:
+        if last is None:
+            return True
+        anchor = last.data.get("wake_at_ms")
         if type(anchor) is not int or anchor < 0:
             raise SupervisorFailure(403, "the supervisor scheduled wake time is invalid")
         return wake_at_ms - anchor >= interval_minutes * 60_000
 
-    def is_quiet(self, principal: SupervisorPrincipal, grant: dict[str, Any], cursor: str | None,
-                 row_event_marker: int) -> bool:
-        last = self._last_wake(principal, grant)
+    def is_quiet(self, last: Entry | None, cursor: str | None, row_event_marker: int) -> bool:
         return bool(last and last.data.get("observation_cursor") == cursor
                     and last.data.get("row_event_marker") == row_event_marker)
 
@@ -89,24 +94,4 @@ class SupervisorWakeSchedule:
     def row_event_marker(self, principal: SupervisorPrincipal) -> int:
         return self.environment_reader.change_marker(principal)
 
-    def _last_wake(self, principal: SupervisorPrincipal, grant: dict[str, Any]) -> Entry | None:
-        with self.scope.environment(PROJECT):
-            rows = self.entries.supervisor_records(
-                "SupervisorWake", last=1,
-                tenant_id=principal.scope["tenant_id"], grant_id=grant["grant_id"], wake_kind="scheduled",
-            )
-        return rows[0] if rows else None
-
-    def _grant_created_at(self, principal: SupervisorPrincipal, grant: dict[str, Any]) -> int:
-        rows = self.entries.selected_globally(
-            self.entries.query()
-            .filter(entry_type="SupervisorGrant", environment_id=grant["driver_environment_id"])
-            .filter_json("data->scope->tenant_id", principal.scope["tenant_id"])
-            .filter_json("data->grant_id", grant["grant_id"])
-            .order_descending("id")
-            .limit(1),
-        )
-        if not rows or not isinstance(rows[0].created_at, datetime):
-            raise SupervisorFailure(403, "the supervisor grant schedule is unavailable")
-        return int(rows[0].created_at.timestamp() * 1000)
 

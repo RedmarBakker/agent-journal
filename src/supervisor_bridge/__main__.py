@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
+from supervisor_bridge.contracts import EVENT_WAKE_KINDS
 from supervisor_bridge.event_hints import EventHintDirectory
 from supervisor_bridge.mcp import McpServer
 from supervisor_bridge.metering import (
@@ -85,7 +86,13 @@ def run(command: list[str]) -> int:
         bridge = SupervisorBridge(service_client(), state, NoAggregateBudgetProof())
         McpServer(bridge).serve()
         return 0
-    if command == ["reconcile"]:
+    if command and command[0] == "reconcile":
+        event_wake = (
+            len(command) == 4 and command[1] == "event" and command[2] in EVENT_WAKE_KINDS
+        )
+        if command != ["reconcile"] and not event_wake:
+            print("reconcile accepts no arguments or event <kind> <id>", file=sys.stderr)
+            return 2
         state = StateStore(state_directory())
         try:
             bridge = configured_bridge(state)
@@ -93,13 +100,14 @@ def run(command: list[str]) -> int:
             state.record_failure("service_unauthorized" if "token" in str(error) else "service_unavailable", False)
             print(json.dumps({"status": "failed", "reason": "configuration_unavailable"}, separators=(",", ":")))
             return 1
-        result = bridge.reconcile("timer")
+        result = (bridge.reconcile("hint", wakeup_id=command[3], event_kind=command[2], event_id=command[3])
+                  if event_wake else bridge.reconcile("timer"))
         print(json.dumps(result.to_dict(), separators=(",", ":")))
         return 0 if result.status in {"skipped", "blocked", "admitted", "hook_acknowledged"} else 1
     if command == ["watch-events"]:
         watch_events()
         return 0
-    print("journal-supervisor-bridge accepts only proxy, wait-for-proxy, mcp, reconcile or watch-events", file=sys.stderr)
+    print("journal-supervisor-bridge accepts only proxy, wait-for-proxy, mcp, reconcile [event <kind> <id>] or watch-events", file=sys.stderr)
     return 2
 
 

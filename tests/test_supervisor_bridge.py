@@ -1619,6 +1619,30 @@ def test_gateway_waits_for_proxy_health_before_starting_openclaw(monkeypatch):
     assert sleeps == [0.1]
 
 
+def test_reconcile_command_forwards_the_staged_event_wakeup(monkeypatch, tmp_path, capsys):
+    state = object()
+    calls = []
+
+    class Result:
+        status = "skipped"
+
+        def to_dict(self):
+            return {"status": self.status, "reason": "empty"}
+
+    class Bridge:
+        def reconcile(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            return Result()
+
+    monkeypatch.setattr(supervisor_main, "state_directory", lambda: tmp_path)
+    monkeypatch.setattr(supervisor_main, "StateStore", lambda _directory: state)
+    monkeypatch.setattr(supervisor_main, "configured_bridge", lambda received: Bridge() if received is state else None)
+
+    assert supervisor_main.run(["reconcile", "event", "failed_check", "PSU-02"]) == 0
+    assert calls == [(("hint",), {"wakeup_id": "PSU-02", "event_kind": "failed_check", "event_id": "PSU-02"})]
+    assert json.loads(capsys.readouterr().out) == {"status": "skipped", "reason": "empty"}
+
+
 def test_mcp_command_uses_the_gateway_proxy_without_starting_another(monkeypatch, tmp_path):
     state, bridge = object(), object()
     served = []

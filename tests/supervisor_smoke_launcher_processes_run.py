@@ -90,12 +90,25 @@ int main(int argc, char **argv) {
         if (access(path, F_OK) == 0) sleep(5);
         const char *gateway_state = getenv("GATEWAY_STATE_PATH");
         if (!gateway_state) return 16;
+        char wake_path[4096], wake_kind[128] = {0};
+        snprintf(wake_path, sizeof(wake_path), "%s/journal-supervisor-case-wake", gateway_state);
+        FILE *wake = fopen(wake_path, "r");
+        if (wake) {
+            if (!fgets(wake_kind, sizeof(wake_kind), wake)) {
+                fclose(wake);
+                return 20;
+            }
+            fclose(wake);
+        }
         snprintf(path, sizeof(path), "%s/journal-supervisor-transport", gateway_state);
         if (mkdir(path, 0700) != 0) return 17;
         snprintf(path, sizeof(path), "%s/journal-supervisor-transport/bridge-state.json", gateway_state);
         FILE *state = fopen(path, "w");
         if (!state) return 18;
-        fputs("{\"last_admission\":\"verified\",\"usage_settlement\":\"settled\",\"receipt\":{\"status\":\"applied\",\"verification\":\"verified\"},\"metering\":{\"provider_requests\":1}}", state);
+        if (strcmp(wake_kind, "quiet\n") == 0)
+            fputs("{\"last_admission\":\"quiet\",\"active_run\":null,\"receipt\":null,\"hook_attempts\":0,\"metering\":{\"provider_requests\":0}}", state);
+        else
+            fputs("{\"last_admission\":\"verified\",\"usage_settlement\":\"settled\",\"receipt\":{\"action_id\":\"action-1\",\"status\":\"applied\",\"verification\":\"verified\"},\"metering\":{\"provider_requests\":1}}", state);
         fclose(state);
         return 0;
     }
@@ -345,6 +358,29 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert "staged-" not in " ".join(calls)
     assert "--message" not in " ".join(calls) and "--session" not in " ".join(calls)
     assert all(argument != "--env" for call in calls for argument in call.split())
+
+
+def test_launcher_finishes_a_staged_quiet_case_after_one_no_provider_admission(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    gateway_state = tmp_path / "gateway-state"
+    wake = gateway_state / "journal-supervisor-case-wake"
+    wake.write_text("quiet\n")
+    wake.chmod(0o444)
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode == 0, result.stderr
+    assert "one wake result" in result.stdout.decode()
+    calls = (home / "docker-calls").read_text().splitlines()
+    assert sum("/opt/journal-supervisor/bin/journal-supervisor-reconcile" in call for call in calls) == 1
+    assert not wake.exists()
+    state = json.loads((gateway_state / "journal-supervisor-transport/bridge-state.json").read_text())
+    assert state == {
+        "last_admission": "quiet", "active_run": None, "receipt": None,
+        "hook_attempts": 0, "metering": {"provider_requests": 0},
+    }
 
 
 def test_launcher_rejects_arguments_and_non_anthropic_input_without_starting_runtime(compiled_launcher, tmp_path):

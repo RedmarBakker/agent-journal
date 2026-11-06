@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
-from supervisor_bridge.proposal_evaluation import load_case, load_seed, result_row, seed_case
+from supervisor_bridge.proposal_evaluation import load_case, load_seed, result_row, seed_case, wake_target
 
 
 ROOT = Path(__file__).parents[1]
@@ -64,6 +64,18 @@ def test_case_seed_uses_v2_grant_and_wakeup_without_reference_labels(tmp_path):
     assert incomplete["checks"]["results"] == []
     assert future_phase["checks"]["results"] == []
     assert quiet["wake_up"] == {"kind": "quiet", "event_kind": None}
+
+
+def test_case_wake_target_preserves_scheduled_event_and_quiet_kinds():
+    targets = {
+        "PSU-01": "scheduled",
+        "PSU-02": "event:failed_check:PSU-02",
+        "PSU-23": "quiet",
+    }
+
+    for case_id, target in targets.items():
+        seed = seed_case(load_case(CASES, case_id))
+        assert wake_target(seed) == target
 
 
 def test_writer_seed_rejects_reference_outcomes_and_reviewer_labels(tmp_path):

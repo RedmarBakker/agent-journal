@@ -21,36 +21,12 @@ def expect_grant_covers_plan(story):
 
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
-def test_a_scheduled_wake_waits_for_the_grant_fifteen_minute_interval(story):
-    expect_grant_covers_plan(story)
-    story.time_travel(minutes=14)
-    early = scheduled_wake(story)
-    early.expect_viewer_passed()
-    early.expect_viewer_part(("reason",), "scheduled_interval_not_elapsed")
-
-    story.time_travel(minutes=1)
-    due = scheduled_wake(story)
-    due.expect_viewer_passed()
-    due.expect_viewer_part(("reason",), "empty")
-
-    repeated = scheduled_wake(story)
-    repeated.expect_viewer_passed()
-    repeated.expect_viewer_part(("reason",), "scheduled_interval_not_elapsed")
-
-    history = story.user_opens_in(
-        story.fixture.supervisor_owner_environment,
-        f"/journal/supervisor/records?period=today&plan_id={story.plans.first}",
-    )
-    history.expect_viewer_passed()
-    history.expect_viewer_part(("current", "wake_ups", "scheduled"), 1)
-    history.expect_viewer_part(("records", 0, "kind"), "wake")
-    history.expect_viewer_part(("records", 0, "interval_minutes"), 15)
-    story.expect_stack(story.agents.subject)
-
-
-@story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_changed_thirty_minute_interval_controls_the_next_scheduled_wake(story):
     expect_grant_covers_plan(story)
+    first = scheduled_wake(story)
+    first.expect_viewer_passed()
+    first.expect_viewer_part(("reason",), "quiet")
+
     control = story.user_opens_in(
         story.fixture.supervisor_owner_environment,
         "/journal/supervisor/control",
@@ -71,13 +47,17 @@ def test_a_changed_thirty_minute_interval_controls_the_next_scheduled_wake(story
     story.time_travel(minutes=1)
     due = scheduled_wake(story)
     due.expect_viewer_passed()
-    due.expect_viewer_part(("reason",), "empty")
+    due.expect_viewer_part(("reason",), "quiet")
     story.expect_stack(story.agents.subject)
 
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
 def test_a_changed_sixty_minute_interval_controls_the_next_scheduled_wake(story):
     expect_grant_covers_plan(story)
+    first = scheduled_wake(story)
+    first.expect_viewer_passed()
+    first.expect_viewer_part(("reason",), "quiet")
+
     changed = change_interval(story, 1, 60)
     changed.expect_viewer_passed()
     changed.expect_viewer_part(("grant_version",), 2)
@@ -91,32 +71,7 @@ def test_a_changed_sixty_minute_interval_controls_the_next_scheduled_wake(story)
     story.time_travel(minutes=1)
     due = scheduled_wake(story)
     due.expect_viewer_passed()
-    due.expect_viewer_part(("reason",), "empty")
-    story.expect_stack(story.agents.subject)
-
-
-@story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
-def test_a_changed_wake_interval_takes_effect_after_the_current_wake(story):
-    expect_grant_covers_plan(story)
-    story.time_travel(minutes=15)
-    due = scheduled_wake(story)
-    due.expect_viewer_passed()
-    due.expect_viewer_part(("reason",), "empty")
-
-    changed = change_interval(story, 1, 30)
-    changed.expect_viewer_passed()
-    changed.expect_viewer_part(("grant_version",), 2)
-    changed.expect_viewer_part(("wake_interval_minutes",), 30)
-
-    story.time_travel(minutes=29)
-    early = scheduled_wake(story)
-    early.expect_viewer_passed()
-    early.expect_viewer_part(("reason",), "scheduled_interval_not_elapsed")
-
-    story.time_travel(minutes=1)
-    next_wake = scheduled_wake(story)
-    next_wake.expect_viewer_passed()
-    next_wake.expect_viewer_part(("reason",), "quiet")
+    due.expect_viewer_part(("reason",), "quiet")
     story.expect_stack(story.agents.subject)
 
 

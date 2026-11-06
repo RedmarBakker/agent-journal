@@ -119,12 +119,16 @@ class SupervisorObservations:
         _, used_cost = self._daily_runs_and_cost(principal, grant, now)
         if used_cost is not None and used_cost >= grant["limits"]["max_cost_microusd_per_day"]:
             return self._skip(grant, request, "budget_exhausted")
-        if not self.wake_schedule.is_due(principal, grant, interval, wake_at_ms):
+        last_wake = self.wake_schedule.last_wake(principal, grant)
+        if not self.wake_schedule.is_due(last_wake, interval, wake_at_ms):
             return self._skipped("scheduled_interval_not_elapsed")
         row_event_marker = self.wake_schedule.row_event_marker(principal)
-        result = self._skipped("quiet") if self.wake_schedule.is_quiet(
-            principal, grant, request["observation_cursor"], row_event_marker,
-        ) else self._admit(principal, grant, request)
+        if self.wake_schedule.is_quiet(last_wake, request["observation_cursor"], row_event_marker):
+            result = self._skipped("quiet")
+        else:
+            result = self._admit(principal, grant, request)
+            if last_wake is None and result.get("reason") == "empty":
+                result = self._skipped("quiet")
         self.wake_schedule.record(
             principal, grant, interval, wake_at_ms, request["observation_cursor"], row_event_marker, result,
         )

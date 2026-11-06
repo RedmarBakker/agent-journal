@@ -30,8 +30,11 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 /opt/journal-supervisor/bin/journal-supervisor-bridge wait-for-proxy
-/opt/journal-supervisor/bin/journal-supervisor-bridge watch-events &
-event_watcher_pid=$!
+case_wake_file="${JOURNAL_SUPERVISOR_STATE_DIR%/*}/journal-supervisor-case-wake"
+if [ ! -r "$case_wake_file" ]; then
+    /opt/journal-supervisor/bin/journal-supervisor-bridge watch-events &
+    event_watcher_pid=$!
+fi
 node dist/index.js gateway run --port "${OPENCLAW_GATEWAY_PORT:-18789}" &
 gateway_pid=$!
 gateway_status=0

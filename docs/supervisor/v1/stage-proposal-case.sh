@@ -71,18 +71,29 @@ if [ ! -d "$GATEWAY_STATE_PATH" ] || [ -L "$GATEWAY_STATE_PATH" ] || [ "$(stat -
     echo "the Gateway state directory must be a real uid 1000:gid 10030 directory with mode 0750" >&2
     exit 2
 fi
+CASE_WAKE=$(PYTHONPATH="$ROOT/src" python3 - "$SEED_DIR/case-seed.json" "$CASE_ID" <<'PY'
+import sys
+from supervisor_bridge.proposal_evaluation import load_seed, wake_target
+
+print(wake_target(load_seed(sys.argv[1], sys.argv[2])))
+PY
+)
 
 compose() {
     docker compose --project-name journal-supervisor-smoke --env-file "$ENV_FILE" \
         -f "$COMPOSE_FILE" --profile authorized-staging "$@"
 }
+clear_hints() {
+    docker run --rm --network none --user 0:0 --entrypoint /bin/sh \
+        --mount type=volume,src=journal-supervisor-smoke_supervisor_hints,dst=/hints \
+        "$IMAGE" -eu -c 'find /hints -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
+}
 
 compose down
 rm -f "$SECRET_SOURCE_DIR/journal_supervisor_credential"
+rm -f "$GATEWAY_STATE_PATH/journal-supervisor-case-wake"
 rm -rf "$GATEWAY_STATE_PATH/journal-supervisor-transport"
-docker run --rm --network none --user 0:0 --entrypoint /bin/sh \
-    --mount type=volume,src=journal-supervisor-smoke_supervisor_hints,dst=/hints \
-    "$IMAGE" -eu -c 'find /hints -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
+clear_hints
 docker run --rm --network none --user 0:0 --entrypoint /bin/sh \
     --mount "type=volume,src=$VOLUME,dst=/data" "$IMAGE" -eu -c \
     'rm -rf /data/project && mkdir -p /data/project'
@@ -97,4 +108,7 @@ compose exec --detach --user 10001:10001 --env JOURNAL_ROOT=/data/project \
     /data/project/.journal/bin/journal codex --env main --yes --no-open
 STAGING_AUTHORIZED=1 JOURNAL_SUPERVISOR_CASE_ID="$CASE_ID" \
     "$ROOT/docs/supervisor/v1/setup-live-smoke.sh"
+clear_hints
+printf '%s\n' "$CASE_WAKE" > "$GATEWAY_STATE_PATH/journal-supervisor-case-wake"
+chmod 0444 "$GATEWAY_STATE_PATH/journal-supervisor-case-wake"
 echo "version 2 case $CASE_ID is staged; run journal secret run 1 -- journal-supervisor-smoke"

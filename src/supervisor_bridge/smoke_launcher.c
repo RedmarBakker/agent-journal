@@ -463,21 +463,71 @@ static int valid_profile(const char *config_path) {
     return valid ? 0 : -1;
 }
 
+typedef enum { VERIFIED_SMOKE, EVALUATION_CASE } SmokeMode;
+
+static long provider_request_count(const char *compact) {
+    char *requests = strstr(compact, "\"provider_requests\":");
+    return requests ? strtol(requests + strlen("\"provider_requests\":"), NULL, 10) : 0;
+}
+
 static bool receipt_complete(const char *path) {
     char *state = NULL;
     if (read_file(path, &state, 131072) != 0) return false;
     char *compact = compact_json(state);
     free(state);
     if (!compact) return false;
-    char *requests = strstr(compact, "\"provider_requests\":");
-    long request_count = requests ? strtol(requests + strlen("\"provider_requests\":"), NULL, 10) : 0;
     bool complete = strstr(compact, "\"last_admission\":\"verified\"")
         && strstr(compact, "\"usage_settlement\":\"settled\"")
         && strstr(compact, "\"status\":\"applied\"")
         && strstr(compact, "\"verification\":\"verified\"")
-        && request_count > 0;
+        && provider_request_count(compact) > 0;
     free(compact);
     return complete;
+}
+
+static bool case_result_complete(const char *path) {
+    char *state = NULL;
+    if (read_file(path, &state, 131072) != 0) return false;
+    char *compact = compact_json(state);
+    free(state);
+    if (!compact) return false;
+    bool terminal_receipt = strstr(compact, "\"receipt\":{\"action_id\":")
+        && (strstr(compact, "\"status\":\"applied\"")
+            || strstr(compact, "\"status\":\"proposed\"")
+            || strstr(compact, "\"status\":\"conflicted\"")
+            || strstr(compact, "\"status\":\"rejected\""))
+        && strstr(compact, "\"usage_settlement\":\"settled\"")
+        && provider_request_count(compact) > 0;
+    bool terminal_skip = (
+        strstr(compact, "\"last_admission\":\"quiet\"")
+        || strstr(compact, "\"last_admission\":\"empty\"")
+        || strstr(compact, "\"last_admission\":\"busy\"")
+        || strstr(compact, "\"last_admission\":\"ineligible\"")
+        || strstr(compact, "\"last_admission\":\"stale_evidence\"")
+        || strstr(compact, "\"last_admission\":\"budget_exhausted\"")
+        || strstr(compact, "\"last_admission\":\"unknown_cost\"")
+        || strstr(compact, "\"last_admission\":\"revoked\"")
+        || strstr(compact, "\"last_admission\":\"needs_owner\"")
+    ) && strstr(compact, "\"active_run\":null") && strstr(compact, "\"receipt\":null")
+        && strstr(compact, "\"hook_attempts\":0") && provider_request_count(compact) == 0;
+    free(compact);
+    return terminal_receipt || terminal_skip;
+}
+
+static bool smoke_complete(const char *path, SmokeMode mode) {
+    return receipt_complete(path) || (mode == EVALUATION_CASE && case_result_complete(path));
+}
+
+static bool staged_case(const char *gateway_state) {
+    char path[MAX_PATH_BYTES];
+    struct stat details;
+    return path_join(path, sizeof(path), gateway_state, "journal-supervisor-case-wake")
+        && lstat(path, &details) == 0 && S_ISREG(details.st_mode) && (details.st_mode & 0222) == 0;
+}
+
+static void remove_case_wake(const char *gateway_state) {
+    char path[MAX_PATH_BYTES];
+    if (path_join(path, sizeof(path), gateway_state, "journal-supervisor-case-wake")) unlink(path);
 }
 
 static bool fresh_state(const char *gateway_state) {
@@ -630,7 +680,8 @@ typedef enum { COMPOSE_READY, COMPOSE_UP, COMPOSE_DOWN, COMPOSE_GATEWAY_HEALTH, 
 
 static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state);
 
-static int wait_for_smoke(pid_t child, struct timespec deadline, const char *receipt_path, const char *secret_directory, const char *gateway_state) {
+static int wait_for_smoke(pid_t child, struct timespec deadline, const char *receipt_path,
+                          const char *secret_directory, const char *gateway_state, SmokeMode mode) {
     struct timespec interval = {.tv_sec = 0, .tv_nsec = 100000000};
     time_t last_gateway_probe = 0;
     bool reconcile_started = false;
@@ -639,7 +690,7 @@ static int wait_for_smoke(pid_t child, struct timespec deadline, const char *rec
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         if (deadline_passed(deadline, now)) break;
-        if (receipt_path && receipt_complete(receipt_path)) return stop_child(child, 0);
+        if (receipt_path && smoke_complete(receipt_path, mode)) return stop_child(child, 0);
         pid_t result = waitpid(child, &status, WNOHANG);
         if (result == child) {
             if (!WIFEXITED(status)) return 128;
@@ -719,14 +770,15 @@ static pid_t start_compose(ComposeAction action, const char *secret_directory, c
     return child;
 }
 
-static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state, int timeout) {
+static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state,
+                  int timeout, SmokeMode mode) {
     struct timespec deadline = deadline_after(timeout);
     pid_t child = start_compose(action, secret_directory, gateway_state);
     if (child < 0) return 127;
     char receipt_path[MAX_PATH_BYTES];
     const char *wait_path = NULL;
     if (action == COMPOSE_UP && path_join(receipt_path, sizeof(receipt_path), gateway_state, "journal-supervisor-transport/bridge-state.json")) wait_path = receipt_path;
-    if (action == COMPOSE_UP) return wait_for_smoke(child, deadline, wait_path, secret_directory, gateway_state);
+    if (action == COMPOSE_UP) return wait_for_smoke(child, deadline, wait_path, secret_directory, gateway_state, mode);
     return wait_until(child, deadline, wait_path);
 }
 
@@ -783,17 +835,19 @@ int main(int argc, char **argv) {
     sigemptyset(&action.sa_mask);
     sigaction(SIGINT, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
-    int codex_ready = compose(COMPOSE_READY, directory, gateway_state, CODEX_READY_TIMEOUT_SECONDS);
+    SmokeMode mode = staged_case(gateway_state) ? EVALUATION_CASE : VERIFIED_SMOKE;
+    int codex_ready = compose(COMPOSE_READY, directory, gateway_state, CODEX_READY_TIMEOUT_SECONDS, mode);
     if (codex_ready != 0) {
         remove_secrets(directory);
         puts("supervisor smoke refused to start without the staged Codex device login");
         return codex_ready;
     }
-    int result = compose(COMPOSE_UP, directory, gateway_state, SMOKE_RUN_SECONDS);
-    int cleanup = compose(COMPOSE_DOWN, directory, gateway_state, STOP_SECONDS + 5);
+    int result = compose(COMPOSE_UP, directory, gateway_state, SMOKE_RUN_SECONDS, mode);
+    int cleanup = compose(COMPOSE_DOWN, directory, gateway_state, STOP_SECONDS + 5, mode);
+    if (mode == EVALUATION_CASE) remove_case_wake(gateway_state);
     remove_secrets(directory);
     if (result == 0 && cleanup == 0) {
-        puts("supervisor smoke stopped after one verified receipt");
+        puts(mode == EVALUATION_CASE ? "supervisor case stopped after one wake result" : "supervisor smoke stopped after one verified receipt");
         return 0;
     }
     puts("supervisor smoke runtime stopped without a verified result");

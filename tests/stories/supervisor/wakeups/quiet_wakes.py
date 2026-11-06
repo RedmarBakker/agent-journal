@@ -15,17 +15,20 @@ def expect_grant_covers_plan(story):
 
 
 @story(SupervisorScheduledWake, subject=AgentRole.SUPERVISOR)
-def test_a_scheduled_wake_with_no_change_is_skipped_as_quiet(story):
+def test_a_new_grant_gets_one_immediate_quiet_wake_then_waits_for_its_interval(story):
     expect_grant_covers_plan(story)
-    story.time_travel(minutes=15)
     first = scheduled_wake(story)
     first.expect_viewer_passed()
-    first.expect_viewer_part(("reason",), "empty")
+    first.expect_viewer_part(("reason",), "quiet")
+
+    early = scheduled_wake(story)
+    early.expect_viewer_passed()
+    early.expect_viewer_part(("reason",), "scheduled_interval_not_elapsed")
 
     story.time_travel(minutes=15)
-    quiet = scheduled_wake(story)
-    quiet.expect_viewer_passed()
-    quiet.expect_viewer_part(("reason",), "quiet")
+    due = scheduled_wake(story)
+    due.expect_viewer_passed()
+    due.expect_viewer_part(("reason",), "quiet")
 
     history = records(story)
     history.expect_viewer_passed()
@@ -45,7 +48,7 @@ def test_a_task_change_keeps_the_next_scheduled_wake_from_being_quiet(story):
     story.time_travel(minutes=15)
     first = scheduled_wake(story)
     first.expect_viewer_passed()
-    first.expect_viewer_part(("reason",), "empty")
+    first.expect_viewer_part(("reason",), "quiet")
 
     changed = story.user_types_in(
         story.fixture.supervisor_owner_environment,

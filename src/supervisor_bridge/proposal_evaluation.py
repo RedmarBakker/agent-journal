@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
+from supervisor_bridge.contracts import EVENT_WAKE_KINDS
 
 
 CASE_ID = re.compile(r"PSU-[0-9]{2}\Z")
@@ -133,6 +134,19 @@ def seed_case(case: dict[str, Any]) -> dict[str, Any]:
         "grant_v2": grant,
         "wake_up": wake_up,
     }
+
+
+def wake_target(seed: dict[str, Any]) -> str:
+    wake_up = seed.get("wake_up")
+    if not isinstance(wake_up, dict) or set(wake_up) != {"kind", "event_kind"}:
+        raise ValueError("the staged proposal case has no valid wake-up")
+    kind = wake_up["kind"]
+    if kind in {"scheduled", "quiet"} and wake_up["event_kind"] is None:
+        return kind
+    if (kind == "event" and wake_up["event_kind"] in EVENT_WAKE_KINDS
+            and isinstance(seed.get("case_id"), str) and CASE_ID.fullmatch(seed["case_id"])):
+        return f"event:{wake_up['event_kind']}:{seed['case_id']}"
+    raise ValueError("the staged proposal case has an unsupported wake-up")
 
 
 def load_seed(path: Path | str, case_id: str) -> dict[str, Any]:

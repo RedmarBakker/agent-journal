@@ -373,6 +373,8 @@ def test_writer_image_archives_and_copies_every_runtime_script():
 def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows():
     stage = (PROFILE / "stage-proposal-case.sh").read_text()
     setup = (PROFILE / "setup-live-smoke.sh").read_text()
+    entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
+    reconcile = (PROFILE / "journal-supervisor-reconcile").read_text()
     collector = (PROFILE / "collect-proposal-case.py").read_text()
     writer_rows = (PROFILE / "supervisor-proposal-writer-rows.py").read_text()
     setup_program = (PROFILE / "live-smoke-setup.py").read_text()
@@ -386,6 +388,14 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     assert "seed-project.sh" in stage and "setup-live-smoke.sh" in stage
     assert "cat > /run/journal-proposal-case-seed.json' < \"$SEED_DIR/case-seed.json\"" in stage
     assert "docs/supervisor/v2/proposal-evaluation-cases.json" in stage
+    assert "wake_target(load_seed" in stage
+    assert stage.index('"$ROOT/docs/supervisor/v1/setup-live-smoke.sh"') < stage.index('clear_hints\nprintf \'%s\\n\' "$CASE_WAKE"')
+    assert 'journal-supervisor-case-wake' in stage and 'chmod 0444' in stage
+    assert 'if [ ! -r "$case_wake_file" ]; then' in entrypoint
+    assert 'watch-events' in entrypoint
+    assert 'scheduled|quiet)' in reconcile
+    assert 'event:*:PSU-[0-9][0-9])' in reconcile
+    assert 'reconcile event "$event_kind" "$event_id"' in reconcile
     assert "JOURNAL_SUPERVISOR_CASE_ID" in setup and "/usr/local/bin/supervisor-live-setup" in setup
     assert "load_seed(CASE_SEED_FILE, case_id)" in setup_program
     assert "configure_v2_grant" in setup_program
