@@ -12,4 +12,6 @@ def test_an_instruction_a_prompt_raises_comes_before_a_remark_waiting_in_its_ans
     message = story.user_sends_message("is the footer done?")
     story.agent_is_prompted(story.agents.subject, "is the footer done?")
     story.expect_last_answer_lines_in_order(MessagesNudges.NEW_MESSAGE.create(n=message), EtiquetteNudges.SECOND_PERSON)
+    result = story.agent_is_prompted(story.agents.subject, "I will check the footer now.")
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
     story.expect_stack(story.agents.subject, Ready)

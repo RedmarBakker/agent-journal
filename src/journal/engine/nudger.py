@@ -27,29 +27,46 @@ class Nudger:
 
     def deliver(self, agent: Agent, nudge: Nudge) -> str | None:
         with self.scope.environment(agent.environment_id):
-            return self._line_record(agent, nudge, repeated=True)
+            return self._line_record(agent, nudge, self._repeat_moment(agent, nudge), {})
+
+    def deliver_in_prompt(self, agent: Agent, nudge: Nudge) -> str | None:
+        with self.scope.environment(agent.environment_id):
+            return self._line_record(agent, nudge, self._hook_repeat_moment(agent, nudge), {})
+
+    def deliver_to_terminal(self, agent: Agent, nudge: Nudge) -> str | None:
+        with self.scope.environment(agent.environment_id):
+            return self._line_record(agent, nudge, self._repeat_moment(agent, nudge), {"delivery": "terminal"})
 
     def answer(self, agent: Agent, nudge: Nudge) -> str | None:
         with self.scope.environment(agent.environment_id):
-            return self._line_record(agent, nudge, repeated=False)
+            return self._line_record(agent, nudge, None, {})
 
     def refuse_with(self, agent: Agent, nudge: Nudge) -> str | None:
         return self.answer(agent, nudge)
 
-    def _line_record(self, agent: Agent, nudge: Nudge, repeated: bool) -> str | None:
+    def _line_record(self, agent: Agent, nudge: Nudge, last: Moment | None, delivery: dict[str, str]) -> str | None:
         self.registry.lookup(nudge.key)
-        if self.features.silenced(nudge) or repeated and self._repeat(agent, nudge):
+        if self.features.silenced(nudge) or self._repeated(agent, nudge, last):
             return None
         rendered = nudge.rendered()
         line = nudge.cut(rendered)
         cut = {CUT_KEY: len(rendered)} if nudge.is_overlong(rendered) else {}
-        self.entries.save(Entry(environment_id=agent.environment_id, entry_type=NUDGE, actor=Actor.system(), data={"key": nudge.key, "values": {name: str(value) for name, value in nudge.values.items()}, "session": agent.session, "line": line, "time": self.clock.time(), "tool_use": agent.tool_uses, **cut}), Actor.system())
+        self.entries.save(Entry(environment_id=agent.environment_id, entry_type=NUDGE, actor=Actor.system(), data={"key": nudge.key, "values": {name: str(value) for name, value in nudge.values.items()}, "session": agent.session, "line": line, "time": self.clock.time(), "tool_use": agent.tool_uses, **delivery, **cut}), Actor.system())
         event = LineDelivered(nudge=nudge.key, values=dict(nudge.values), agent=agent).placed(agent, None, self.clock.time())
         self.deferred.add(lambda: self.bus.dispatch(event))
         return line
 
-    def _repeat(self, agent: Agent, nudge: Nudge) -> bool:
-        if not nudge.repeat.amount:
+    def _repeat_moment(self, agent: Agent, nudge: Nudge) -> Moment | None:
+        if nudge.blocks_regardless:
+            return self.entries.last_key_moment(agent.session, nudge.key)
+        return self.entries.last_line_moment(agent.session, nudge.key, nudge.cut(nudge.rendered()))
+
+    def _hook_repeat_moment(self, agent: Agent, nudge: Nudge) -> Moment | None:
+        if nudge.blocks_regardless:
+            return self.entries.last_hook_key_moment(agent.session, nudge.key)
+        return self.entries.last_hook_line_moment(agent.session, nudge.key, nudge.cut(nudge.rendered()))
+
+    def _repeated(self, agent: Agent, nudge: Nudge, last: Moment | None) -> bool:
+        if not nudge.repeat.amount or last is None:
             return False
-        last = self.entries.last_key_moment(agent.session, nudge.key) if nudge.blocks_regardless else self.entries.last_line_moment(agent.session, nudge.key, nudge.cut(nudge.rendered()))
-        return last is not None and not nudge.repeat.reset(last).has_passed(Moment(seconds=self.clock.time(), tool_uses=agent.tool_uses))
+        return not nudge.repeat.reset(last).has_passed(Moment(seconds=self.clock.time(), tool_uses=agent.tool_uses))

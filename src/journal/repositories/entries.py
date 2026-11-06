@@ -226,8 +226,14 @@ class Entries(ScopedRepository[Entry]):
     def last_line_moment(self, session: str, key: str, line: str) -> Moment | None:
         return self.line_moment(self.lines(session).filter_json("data->key", key).filter_json("data->line", line))
 
+    def last_hook_line_moment(self, session: str, key: str, line: str) -> Moment | None:
+        return self.line_moment(self.hook_lines(session).filter_json("data->key", key).filter_json("data->line", line))
+
     def last_key_moment(self, session: str, key: str) -> Moment | None:
         return self.line_moment(self.lines(session).filter_json("data->key", key))
+
+    def last_hook_key_moment(self, session: str, key: str) -> Moment | None:
+        return self.line_moment(self.hook_lines(session).filter_json("data->key", key))
 
     def last_keys_moment(self, session: str, keys: tuple[str, ...]) -> Moment | None:
         return self.line_moment(self.lines(session).filter_listed("data->key", keys))
@@ -436,6 +442,9 @@ class Entries(ScopedRepository[Entry]):
 
     def lines(self, session: str) -> Query:
         return self.query().filter(entry_type=NUDGE).filter_json("data->session", session)
+
+    def hook_lines(self, session: str) -> Query:
+        return self.lines(session).filter_unequal("data->delivery", "terminal")
 
     def _placed(self, row: Entry) -> Entry:
         return row
