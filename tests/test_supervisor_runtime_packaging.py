@@ -414,8 +414,8 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     assert "proposal-evaluation-cases-v1.json" not in writer_build
     assert "journal-supervisor-transport" in collector
     assert "supervisor-proposal-writer-rows" in collector
-    assert '"run"' in collector and '"--rm"' in collector and '"--no-deps"' in collector
-    assert '"--network", "none"' in collector
+    assert '"docker", "run", "--rm", "--network", "none"' in collector
+    assert "journal-supervisor-smoke_writer_state" in collector
     assert '"--entrypoint"' in collector
     assert '"exec"' not in collector
     assert '"SupervisorActionReceipt"' in writer_rows and '"SupervisorUsage"' in writer_rows

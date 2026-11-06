@@ -16,7 +16,6 @@ from supervisor_bridge.proposal_evaluation import load_case, result_row
 
 STAGING_PROFILE = ROOT / "docs/supervisor/v1"
 EVALUATION_PROFILE = ROOT / "docs/supervisor/v2"
-COMPOSE = STAGING_PROFILE / "compose.json"
 ENV_FILE = STAGING_PROFILE / "live-smoke.env"
 DEFAULT_RESULTS = EVALUATION_PROFILE / "proposal-evaluation-results.jsonl"
 
@@ -32,10 +31,10 @@ def parse_args():
 
 def writer_rows(env_file: Path) -> list[dict]:
     result = subprocess.run(
-        ["docker", "compose", "--project-name", "journal-supervisor-smoke", "--env-file", str(env_file),
-         "-f", str(COMPOSE), "--profile", "authorized-staging", "run", "--rm", "--no-deps",
-         "--network", "none", "--user", "journal", "--entrypoint",
-         "/usr/local/bin/supervisor-proposal-writer-rows", "writer"],
+        ["docker", "run", "--rm", "--network", "none", "--user", "journal",
+         "--mount", "type=volume,src=journal-supervisor-smoke_writer_state,dst=/data",
+         "--entrypoint", "/usr/local/bin/supervisor-proposal-writer-rows",
+         f"agent-journal-supervisor-writer:{env_value(env_file, 'PROFILE_REVISION')}"],
         check=True, capture_output=True, text=True,
     )
     payload = json.loads(result.stdout)
@@ -44,11 +43,18 @@ def writer_rows(env_file: Path) -> list[dict]:
     return payload["rows"]
 
 
+def env_value(env_file: Path, name: str) -> str:
+    values = [line.split("=", 1)[1] for line in env_file.read_text().splitlines() if line.startswith(f"{name}=")]
+    if len(values) != 1 or not values[0]:
+        raise ValueError(f"live-smoke.env must name one {name}")
+    return values[0]
+
+
 def bridge_state_path(env_file: Path) -> Path:
-    values = [line.split("=", 1)[1] for line in env_file.read_text().splitlines() if line.startswith("GATEWAY_STATE_PATH=")]
-    if len(values) != 1 or not values[0].startswith("/"):
+    gateway_state = env_value(env_file, "GATEWAY_STATE_PATH")
+    if not gateway_state.startswith("/"):
         raise ValueError("live-smoke.env must name one absolute GATEWAY_STATE_PATH")
-    return Path(values[0]) / "journal-supervisor-transport" / "bridge-state.json"
+    return Path(gateway_state) / "journal-supervisor-transport" / "bridge-state.json"
 
 
 def append_once(path: Path, row: dict) -> None:

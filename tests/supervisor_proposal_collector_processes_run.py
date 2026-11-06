@@ -29,7 +29,7 @@ def test_collector_records_proposal_after_launcher_stops_stack_without_bridge_fi
     gateway_state = tmp_path / "gateway-state"
     gateway_state.mkdir()
     env_file = tmp_path / "live-smoke.env"
-    env_file.write_text(f"GATEWAY_STATE_PATH={gateway_state}\n")
+    env_file.write_text(f"GATEWAY_STATE_PATH={gateway_state}\nPROFILE_REVISION=test-reviewed-revision\n")
     results = tmp_path / "results.jsonl"
     environment = {**os.environ, "PATH": f"{docker_bin}:{os.environ['PATH']}"}
 
@@ -59,14 +59,13 @@ def test_collector_records_proposal_after_launcher_stops_stack_without_bridge_fi
     assert row["outcome"]["action_status"] == "proposed"
     assert row["outcome"]["owner_decision"] == "accepted"
     arguments = json.loads(calls_path.read_text())
-    assert arguments[0] == "compose"
-    assert "run" in arguments
-    assert "--rm" in arguments and "--no-deps" in arguments
+    assert arguments[:2] == ["run", "--rm"]
     assert "--network" in arguments and arguments[arguments.index("--network") + 1] == "none"
+    assert "type=volume,src=journal-supervisor-smoke_writer_state,dst=/data" in arguments
     assert "--entrypoint" in arguments
     assert arguments[arguments.index("--entrypoint") + 1] == "/usr/local/bin/supervisor-proposal-writer-rows"
-    assert arguments[-1] == "writer"
-    assert "exec" not in arguments and "up" not in arguments
+    assert arguments[-1] == "agent-journal-supervisor-writer:test-reviewed-revision"
+    assert "compose" not in arguments and "exec" not in arguments
 
 
 def test_collector_uses_bridge_metering_for_an_unreceipted_run(tmp_path):
@@ -113,7 +112,7 @@ def test_collector_uses_bridge_metering_for_an_unreceipted_run(tmp_path):
     finished_at = datetime.fromisoformat("2026-11-06T12:00:30+00:00").timestamp()
     os.utime(bridge_state, (finished_at, finished_at))
     env_file = tmp_path / "live-smoke.env"
-    env_file.write_text(f"GATEWAY_STATE_PATH={gateway_state}\n")
+    env_file.write_text(f"GATEWAY_STATE_PATH={gateway_state}\nPROFILE_REVISION=test-reviewed-revision\n")
     results = tmp_path / "results.jsonl"
     environment = {
         **os.environ,
@@ -156,7 +155,7 @@ def test_collector_labels_a_quiet_case_from_its_staged_wake(tmp_path):
         "last_admission": "quiet", "receipt": None, "metering": {"provider_requests": 0},
     }))
     env_file = tmp_path / "live-smoke.env"
-    env_file.write_text(f"GATEWAY_STATE_PATH={gateway_state}\n")
+    env_file.write_text(f"GATEWAY_STATE_PATH={gateway_state}\nPROFILE_REVISION=test-reviewed-revision\n")
     results = tmp_path / "results.jsonl"
 
     result = subprocess.run(
