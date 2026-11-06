@@ -50,7 +50,7 @@ CASE_SEED_FILE = Path("/run/journal-proposal-case-seed.json")
 GRANT_LIMITS = {
     "max_turns_per_day": 1,
     "max_input_tokens_per_turn": 80000,
-    "max_output_tokens_per_turn": 8000,
+    "max_output_tokens_per_turn": 16000,
     "max_provider_requests_per_turn": 12,
     "max_turn_seconds": 600,
     "max_cost_microusd_per_day": 1000000,

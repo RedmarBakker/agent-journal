@@ -533,7 +533,7 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "SupervisorLink" in setup and "plan_agents.is_running(environment)" in setup
     assert '"/_supervisor/v1/enrollment"' in setup
     assert '"max_input_tokens_per_turn": 80000' in setup
-    assert '"max_output_tokens_per_turn": 8000' in setup
+    assert '"max_output_tokens_per_turn": 16000' in setup
     assert '"max_provider_requests_per_turn": 12' in setup
     assert '"max_turns_per_day": 1' in setup
     assert '"max_cost_microusd_per_day": 1000000' in setup
@@ -547,7 +547,7 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     )
     assert "MAX_INPUT_TOKENS_PER_TURN = 80_000" in grant_model
     assert "80,000 input tokens" in (PROFILE / "STAGING-REPORT.md").read_text()
-    assert "$0.40 per run" in (PROFILE / "STAGING-REPORT.md").read_text()
+    assert "$0.48 per run" in (PROFILE / "STAGING-REPORT.md").read_text()
     assert "active_workers = workers.global_matching(state=WorkerState.DISPATCHED)" in setup and "if active_workers:" in setup
     assert '"mode": "bounded_write"' in setup
     assert '"/run/journal_supervisor_credential"' in setup
@@ -584,6 +584,27 @@ def test_live_provider_request_cap_is_persisted_in_the_owner_grant():
     assert "journal__journal_supervisor-observe" in report
     assert "journal__journal_supervisor-run_or_propose" in report
     assert "no tool arguments were inspected" in report
+
+
+def test_live_output_budget_covers_the_observed_turn_under_the_daily_cost_cap():
+    setup = (PROFILE / "live-smoke-setup.py").read_text()
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+    report = (PROFILE / "STAGING-REPORT.md").read_text()
+    contract = (PROFILE / "contract.md").read_text()
+
+    assert '"max_output_tokens_per_turn": 16000' in setup
+    assert '"max_provider_requests_per_turn": 12' in setup
+    assert '\\\"max_output_tokens_per_turn\\\": 16000' in launcher
+    assert 'all_values_equal(compact, "maxTokens", "8000")' in launcher
+    assert "5,260 with `journal__journal_supervisor-run_or_propose`" in report
+    assert "They total the 8,000-token turn cap" in report
+    assert "twice measured use over four generations" in report
+    assert "12 requests allowing up to six generations" in report
+    assert "16,000 output" in runbook
+    assert "OpenClaw `maxTokens` remains 8,000 per generation" in runbook
+    assert "conservative token charge is $0.48" in contract
+    assert "below the $1.00 daily cap" in contract
 
 
 def test_plan_driver_socket_uses_a_server_and_driver_only_group():

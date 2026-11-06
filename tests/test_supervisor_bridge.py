@@ -1396,6 +1396,26 @@ def test_twelve_provider_requests_leave_room_for_four_reads_and_an_action_respon
     ] * 5
 
 
+def test_sixteen_thousand_output_cap_covers_six_version_two_responses(tmp_path):
+    output_tokens = (211, 5260, 871, 1658, 1000, 1000)
+    state = metered_state(tmp_path, max_input=80000, max_output=16000, max_requests=12)
+    provider = StubProvider([
+        response
+        for output in output_tokens
+        for response in (provider_input_tokens(2), provider_response(2, output))
+    ])
+    proxy = MeteringProxy(state, provider)
+
+    replies = [proxy.forward(model_request(max_tokens=8000)) for _ in output_tokens]
+
+    usage = state.snapshot()["metering"]
+    assert [reply.status for reply in replies] == [200, 200, 200, 200, 200, 200]
+    assert usage["output_tokens"] == sum(output_tokens)
+    assert usage["output_tokens"] < 16000
+    assert usage["provider_requests"] == 12
+    assert usage["status"] == "capped"
+
+
 @pytest.mark.parametrize("missing", [
     "input_tokens",
     "output_tokens",
