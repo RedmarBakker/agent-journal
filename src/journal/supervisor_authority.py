@@ -105,7 +105,7 @@ class SupervisorAuthority:
     def owner_control(self, actor: Actor, environment_id: int) -> dict[str, Any]:
         entry = self._owner_environment_entry(environment_id)
         if entry is None:
-            raise SupervisorFailure(403, "supervisor request is not authorized")
+            return {"status": "never_set_up", "grant": None}
         grant = self._public_grant(entry)
         owner_id = self._owner(actor, self._plan(grant["plan_id"]))
         if owner_id != grant["owner_user_id"]:

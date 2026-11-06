@@ -2,6 +2,7 @@
 import {computed, ref, watch} from "vue";
 import {api} from "../api/client.js";
 import {refreshSupervisorWaitingCount} from "../composables/navigation.js";
+import SupervisorNotSetUp from "./SupervisorNotSetUp.vue";
 
 const RESULTS = ["Acted", "Proposed", "Nothing to do", "Skipped as quiet", "Skipped", "Handed to you", "In progress"];
 const history = ref([]);
@@ -272,6 +273,7 @@ checkOwner();
         </div>
 
         <p v-if="loading" class="history-loading" role="status">Loading decisions and actions.</p>
+        <SupervisorNotSetUp v-else-if="!problem && !hasHistory && historyStatus === 'never_set_up'" />
         <p v-else-if="!problem && !hasHistory" class="history-empty" role="status">No decisions yet.</p>
         <div v-else class="history-list">
             <article v-for="row in history" :key="row.id" class="history-row" :data-history-row="row.id">

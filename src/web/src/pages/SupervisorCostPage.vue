@@ -3,6 +3,7 @@ import {computed, ref} from "vue";
 import {api} from "../api/client.js";
 import {href} from "../route.js";
 import {supervisorGrantChange} from "./supervisorGrantChange.js";
+import SupervisorNotSetUp from "./SupervisorNotSetUp.vue";
 
 const costs = ref(null);
 const problem = ref("");
@@ -165,6 +166,7 @@ async function loadControl() {
     try {
         control.value = await api.supervisorControl();
         const grant = control.value.grant;
+        if (!grant) return;
         const limit = Number(grant.limits.max_cost_microusd_per_day);
         costs.value = {
             ...costs.value,
@@ -220,6 +222,8 @@ loadControl();
         </p>
         <p v-if="loading" class="cost-loading" role="status">Loading cost records.</p>
         <template v-else-if="!problem && costs">
+            <SupervisorNotSetUp v-if="costs.status === 'never_set_up'" />
+            <template v-else>
             <section v-if="dailyCap !== null" class="cost-card cost-cap" data-cost-cap aria-labelledby="cost-cap-title">
                 <header class="cost-cap-heading">
                     <h3 id="cost-cap-title">Daily cost cap</h3>
@@ -406,6 +410,7 @@ loadControl();
                     <span>Today</span>
                 </p>
             </section>
+            </template>
             </template>
         </template>
     </section>

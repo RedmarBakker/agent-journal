@@ -202,6 +202,16 @@ test("an empty cost history says no cost has been recorded", async () => {
     expect(page.querySelectorAll("[data-trend-day]")).toHaveLength(0);
 });
 
+test("a never set up supervisor offers the owner a plan to start setup", async () => {
+    api.supervisorCosts.mockResolvedValue(emptyCosts);
+    api.supervisorControl.mockResolvedValue({status: "never_set_up", grant: null});
+    const page = await openPage();
+
+    expect(page.textContent).toContain("The supervisor is not set up for this environment.");
+    expect(page.querySelector("[data-supervisor-setup]").getAttribute("href")).toBe("#/plans");
+    expect(page.querySelector("[data-cost-cap]")).toBeNull();
+});
+
 test("unknown costs stay marked Not known in totals, groups and the trend", async () => {
     api.supervisorCosts.mockResolvedValue(unknownCosts);
     const page = await openPage();

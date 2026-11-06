@@ -97,7 +97,7 @@ async function openPage() {
     app.directive("tip", {});
     app.mount(host);
     await vi.waitFor(() => expect(api.supervisorControl).toHaveBeenCalled());
-    await vi.waitFor(() => expect(host.querySelector("[data-supervisor-controls], [data-control-denied]")).not.toBeNull());
+    await vi.waitFor(() => expect(host.querySelector("[data-supervisor-controls], [data-control-denied], [data-supervisor-not-set-up]")).not.toBeNull());
     return host;
 }
 
@@ -135,6 +135,16 @@ test("the owner sees grant settings for all 13 areas and saves every control thr
         expected_grant_version: 3,
         change: {kind: "configure", grant: {...settings().grant, wake_interval_minutes: 30}},
     });
+});
+
+test("the owner is offered the plan step when no supervisor is set up", async () => {
+    api.supervisorControl.mockResolvedValue({status: "never_set_up", grant: null, proposals: [], rules: []});
+    const page = await openPage();
+
+    expect(page.textContent).toContain("The supervisor is not set up for this environment.");
+    expect(page.querySelector("[data-supervisor-setup]").getAttribute("href")).toBe("#/plans");
+    expect(page.querySelector("[data-supervisor-controls]")).toBeNull();
+    expect(page.querySelector("[data-control-denied]")).toBeNull();
 });
 
 test("the owner can show every tier 3 decision", async () => {

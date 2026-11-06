@@ -3,6 +3,7 @@ import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
 import {refreshSupervisorWaitingCount} from "../composables/navigation.js";
 import {supervisorGrantChange} from "./supervisorGrantChange.js";
+import SupervisorNotSetUp from "./SupervisorNotSetUp.vue";
 
 const WAKE_EVENTS = [
     ["failed_check", "Failed check"],
@@ -263,13 +264,13 @@ onMounted(load);
 </script>
 
 <template>
-    <section class="supervisor-control" :data-supervisor-controls="!loading && control ? '' : null" aria-labelledby="supervisor-control-title">
+    <section class="supervisor-control" :data-supervisor-controls="!loading && grant ? '' : null" aria-labelledby="supervisor-control-title">
         <p v-if="loading" role="status">Loading Supervisor Control.</p>
         <section v-else-if="!control" data-control-denied role="alert" class="control-problem">
             <h2>Control is not available</h2>
             <p>{{ problem }}</p>
         </section>
-        <template v-else>
+        <template v-else-if="grant">
             <header class="control-heading">
                 <div>
                     <h2 id="supervisor-control-title">Control</h2>
@@ -454,6 +455,15 @@ onMounted(load);
                 </div>
                 <p class="control-note">Only the environment owner can change the supervisor.</p>
             </section>
+        </template>
+        <template v-else>
+            <header class="control-heading">
+                <div>
+                    <h2 id="supervisor-control-title">Control</h2>
+                    <p>Set when the supervisor wakes and what it may do in this environment.</p>
+                </div>
+            </header>
+            <SupervisorNotSetUp />
         </template>
     </section>
 </template>

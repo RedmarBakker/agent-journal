@@ -91,6 +91,8 @@ test("a never set up Supervisor shows the document 13 empty message without inve
     const page = await openPage();
 
     expect(page.querySelector('[data-summary-status] .summary-value').textContent).toBe("Never set up");
+    expect(page.textContent).toContain("The supervisor is not set up for this environment.");
+    expect(page.querySelector('[data-summary-status] [data-supervisor-setup]').getAttribute("href")).toBe("#/plans");
     expect(page.textContent).toContain("The supervisor has not woken in this period.");
     expect(page.querySelector('[data-stat="today-cost"] .not-built-yet').textContent).toBe("Not built yet");
     expect(page.querySelector('[data-action="applied"]')).toBeNull();

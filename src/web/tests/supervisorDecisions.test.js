@@ -150,11 +150,13 @@ test("the owner sees complete wake-up history, filters it, undoes tier one actio
     }));
 });
 
-test("an empty history says that there are no decisions yet", async () => {
+test("a never set up supervisor offers the owner a plan to start setup", async () => {
     api.supervisorHistory.mockResolvedValue(response("never_set_up", []));
+    api.supervisorControl.mockResolvedValue({status: "never_set_up", grant: null});
     const page = await openPage();
 
-    expect(page.textContent).toContain("No decisions yet.");
+    expect(page.textContent).toContain("The supervisor is not set up for this environment.");
+    expect(page.querySelector("[data-supervisor-setup]").getAttribute("href")).toBe("#/plans");
     expect(page.querySelectorAll("[data-history-row]")).toHaveLength(0);
 });
 

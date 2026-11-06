@@ -8,6 +8,7 @@ import {href, route} from "../route.js";
 import SupervisorControlPage from "./SupervisorControlPage.vue";
 import SupervisorDecisionsPage from "./SupervisorDecisionsPage.vue";
 import SupervisorCostPage from "./SupervisorCostPage.vue";
+import SupervisorNotSetUp from "./SupervisorNotSetUp.vue";
 
 const PERIODS = [
     {key: "today", label: "Today"},
@@ -133,7 +134,7 @@ watch(subpage, () => {
                     <article class="supervisor-summary-card" data-summary-status>
                         <span class="summary-label">Status</span>
                         <strong class="summary-value">{{ records.status === "never_set_up" ? "Never set up" : records.status === "off" ? "Supervisor off" : "Supervisor on" }}</strong>
-                        <p v-if="records.status === 'never_set_up'">Turning on is closed on this installation until its safety checks pass.</p>
+                        <SupervisorNotSetUp v-if="records.status === 'never_set_up'" />
                         <p v-else><span class="not-built-yet" title="Not built yet">Not built yet</span> Live bridge status</p>
                         <a :href="subpageHref('control')">Open Control</a>
                     </article>
