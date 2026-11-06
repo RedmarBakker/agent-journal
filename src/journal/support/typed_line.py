@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
+JOURNAL_PREFIX = "[journal]"
+
 
 @dataclass(frozen=True)
 class TypedLine:
-    """A line typed into an agent's terminal, waiting for the prompt hook that proves it arrived; a piece of it the terminal broke off still proves it."""
+    """A line typed into an agent's terminal, confirmed by a prompt containing its words with or without the journal marker; a broken-off piece of it also proves it arrived."""
 
     SPLIT_MARGIN: ClassVar[int] = 40
 
@@ -19,4 +21,5 @@ class TypedLine:
 
     def contains(self, prompt: str) -> bool:
         text = " ".join(prompt.split())
-        return self.line in text or (len(text) >= self.SPLIT_MARGIN and text in self.line)
+        line = self.line.removeprefix(f"{JOURNAL_PREFIX} ")
+        return line in text or (len(text) >= self.SPLIT_MARGIN and text in self.line)

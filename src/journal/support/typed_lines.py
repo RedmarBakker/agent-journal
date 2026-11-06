@@ -1,10 +1,9 @@
 from journal.support.timeout import Timeout
 from journal.support.queued_line import QueuedLine
-from journal.support.typed_line import TypedLine
+from journal.support.typed_line import JOURNAL_PREFIX, TypedLine
 from journal.support.time_source import TimeSource
 
 RECENT_SECONDS = 60.0
-JOURNAL_PREFIX = "[journal]"
 
 class TypedLines:
     """The lines for the agents, held until a hook's answer carries them, and the first of them typed into a stopped agent's terminal, waking it so its prompt carries the rest: the typed line is confirmed by the prompt that contains its words, and until then it may have been lost; a woken agent counts as working until it stops again, so no second line is ever typed meanwhile. An environment paused holds every line until it is resumed; one disabled drops every line until it is enabled; clear empties what it holds: what the agent missed, the read at its next start tells it."""
