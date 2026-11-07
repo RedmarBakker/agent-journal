@@ -948,8 +948,8 @@ def test_plan_driver_launch_uses_its_own_launch_file_without_taking_over_main(tm
     trusted = tomllib.loads((driver_home / "config.toml").read_text())["hooks"]["state"]
     assert trusted and all(key.startswith(f"{hooks_file.resolve()}:") for key in trusted)
     assert all(state["enabled"] and state["trusted_hash"].startswith("sha256:") for state in trusted.values())
-    assert not (project / ".journal" / "runtime").exists()
-    assert not (project / ".journal").exists()
+    assert {path.name for path in owner_launch.parent.iterdir()} == {"main.json"}
+    assert not (project / ".journal" / "runtime" / "server.log").exists()
 
 
 def test_plan_driver_codex_config_trusts_only_its_worktree_and_journal_hooks_before_command(tmp_path, monkeypatch):
