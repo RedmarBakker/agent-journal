@@ -29,11 +29,14 @@ class SupervisorScheduledWake(SupervisorGrantFixture):
     story_start_at = None
     owner_route = "/journal/plans"
 
-    def steps(self, story) -> None:
-        self.restore_on(story)
+    def restore_on(self, story) -> None:
+        super().restore_on(story)
         if self.story_start_at is not None:
             story.app.container.get(TimeSource).pin(self.story_start_at)
             story.app.container.get(Clock).held_at = self.story_start_at
+
+    def steps(self, story) -> None:
+        self.restore_on(story)
         fixture = seeded(story.app, owner_id=1)
         authority = story.app.container.get(SupervisorAuthority)
         request = enrollment(fixture, "shadow")

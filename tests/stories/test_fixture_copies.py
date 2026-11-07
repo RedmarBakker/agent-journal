@@ -1,12 +1,14 @@
 import pytest
 
 from tests.agent_hooks import timing, typing_capture, pinned_clock, story_seconds
+from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.story import Story
 from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.void_provider import VoidProvider
 from tests.stories.fixtures.main.new_session import NewSession
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.main.started_task import StartedTask
+from tests.stories.fixtures.supervisor.supervisor_quiet_wakes import SupervisorQuietWakes
 from journal.engine.clock import Clock
 from journal.support.time_source import TimeSource
 
@@ -55,6 +57,24 @@ def test_each_story_reuses_the_process_clock_origin(app, monkeypatch):
     pinned_clock(app, monkeypatch)
 
     assert source.seconds() == origin, "the next story starts from the process clock origin, not a fixture's wall-clock age"
+
+
+def test_a_restored_supervisor_fixture_uses_its_start_after_the_process_clock_passes_grant_expiry(app, monkeypatch):
+    typing_capture(app, monkeypatch, [])
+    origin = SupervisorQuietWakes.story_start_at + 190 * 60
+    monkeypatch.setattr(app, "story_clock_origin", origin, raising=False)
+    monkeypatch.setattr(timing, "time", lambda: origin)
+    copies = FixtureCopies()
+    seeded = Story(app, VoidProvider, SettingReads(), copies, monkeypatch)
+
+    pinned_clock(app, monkeypatch)
+    seeded.reach(SupervisorQuietWakes)
+    assert story_seconds(app) == SupervisorQuietWakes.story_start_at, "the fixed-start supervisor fixture seeds its grant on the story clock"
+
+    restored = Story(app, VoidProvider, SettingReads(), copies, monkeypatch)
+    pinned_clock(app, monkeypatch)
+    restored.reach(SupervisorQuietWakes)
+    assert story_seconds(app) == SupervisorQuietWakes.story_start_at, "a restored fixed-start fixture keeps its grant's clock even after the process clock passes its expiry"
 
 
 def test_story_seconds_requires_the_pinned_story_clock(app, monkeypatch):
