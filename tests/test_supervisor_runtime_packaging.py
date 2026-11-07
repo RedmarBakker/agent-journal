@@ -708,7 +708,7 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert "smoke_tasks_match(tasks)" in signature
     assert "task.title == TASK_TITLE" in smoke_tasks and "task.brief == TASK_BRIEF" in smoke_tasks
     assert "case_task_specs(seed)" in smoke_tasks
-    assert "task.supervisor_reserved == spec[\"supervisor_reserved\"]" in smoke_tasks
+    assert 'task.supervisor_reserved != spec["supervisor_reserved"]' in smoke_tasks
     assert 'valid_states = {TaskState.OPEN} if spec["supervisor_reserved"]' in smoke_tasks
     assert "valid_states.update({TaskState.COMPLETED, TaskState.CANCELLED})" in smoke_tasks
     assert "if not setup_plan_matches(plan, phases, tasks):" in resume
