@@ -298,6 +298,41 @@ def test_enrollment_stores_the_version_two_environment_grant(app, authority_fixt
     assert stored["valid_until_ms"] == grant["valid_until_ms"] and stored["paused"] is False and stored["revoked"] is False, "enrollment preserves grant lifetime and starts unpaused"
 
 
+def test_enrollment_stays_eligible_after_a_diagnostic_closes_when_its_anchor_remains_open(app, authority_fixture):
+    fixture = authority_fixture
+    scope = app.container.get(Scope)
+    tasks = app.container.get(Tasks)
+    links = app.container.get(Links)
+    with scope.environment(fixture.owner_environment.row_id):
+        diagnostic = tasks.find(fixture.task.row_id)
+        tasks.save(diagnostic.with_(
+            state=TaskState.COMPLETED,
+            completed_at=datetime(2026, 11, 7, tzinfo=timezone.utc),
+            outcome="The bound driver completed the case diagnostic.",
+        ), fixture.owner)
+
+    with pytest.raises(SupervisorFailure, match="plan is not eligible for supervisor enrollment"):
+        fixture.authority.enrollment_context(
+            fixture.plan.row_id, (fixture.check.row_id,), str(fixture.template.row_id),
+        )
+
+    with scope.environment(fixture.owner_environment.row_id):
+        anchor = tasks.save(Task(
+            environment_id=fixture.owner_environment.row_id,
+            title="Keep the evaluation plan eligible",
+            brief="Keep one open task while the case diagnostic is completed.",
+            supervisor_reserved=True,
+        ), fixture.owner)
+        links.linked(Ref.build(anchor), Ref.build(fixture.phase), PHASE_LINK, fixture.owner)
+        links.linked(Ref.build(anchor), Ref.build(fixture.plan), PLAN_LINK, fixture.owner)
+
+    context = fixture.authority.enrollment_context(
+        fixture.plan.row_id, (fixture.check.row_id,), str(fixture.template.row_id),
+    )
+
+    assert context["current_phase"]["phase_id"] == fixture.phase.row_id
+
+
 def test_enrollment_enforces_the_eighty_thousand_input_token_bound(app, authority_fixture):
     fixture = authority_fixture
     body = enrollment(fixture, "bounded_write")

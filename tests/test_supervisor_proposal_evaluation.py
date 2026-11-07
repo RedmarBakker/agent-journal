@@ -87,12 +87,16 @@ def test_case_wake_target_preserves_scheduled_event_and_quiet_kinds():
         assert wake_target(seed) == target
 
 
-def test_psu04_seeds_a_reserved_open_task_beside_the_bound_drivers_diagnostic():
-    seed = seed_case(load_case(CASES, "PSU-04"))
+@pytest.mark.parametrize(("case_id", "diagnostic_kind"), [
+    ("PSU-03", "matching_open_unassigned"),
+    ("PSU-04", "matching_started_by_bound_driver"),
+])
+def test_active_diagnostic_cases_seed_a_reserved_open_eligibility_anchor(case_id, diagnostic_kind):
+    seed = seed_case(load_case(CASES, case_id))
     tasks = case_task_specs(seed)
 
-    assert seed["tasks"]["diagnostic"] == "matching_started_by_bound_driver"
-    assert seed["tasks"]["eligibility_anchor"]["title"] == "Keep supervisor case PSU-04 eligible for enrollment"
+    assert seed["tasks"]["diagnostic"] == diagnostic_kind
+    assert seed["tasks"]["eligibility_anchor"]["title"] == f"Keep supervisor case {case_id} eligible for enrollment"
     assert len(tasks) == 2
     assert tasks[0]["title"] == seed["tasks"]["title"]
     assert tasks[0]["supervisor_reserved"] is False

@@ -5,8 +5,11 @@ import importlib.util
 import json
 import re
 import stat
+from contextlib import nullcontext
 from types import SimpleNamespace
 from pathlib import Path
+
+import pytest
 
 from journal.models.supervisor_grant import SupervisorGrant
 from journal.models.task_state import TaskState
@@ -706,7 +709,8 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert "task.title == TASK_TITLE" in smoke_tasks and "task.brief == TASK_BRIEF" in smoke_tasks
     assert "case_task_specs(seed)" in smoke_tasks
     assert "task.supervisor_reserved == spec[\"supervisor_reserved\"]" in smoke_tasks
-    assert "task.state in {TaskState.OPEN, TaskState.STARTED}" in smoke_tasks
+    assert 'valid_states = {TaskState.OPEN} if spec["supervisor_reserved"]' in smoke_tasks
+    assert "valid_states.update({TaskState.COMPLETED, TaskState.CANCELLED})" in smoke_tasks
     assert "if not setup_plan_matches(plan, phases, tasks):" in resume
     assert "if authority.has_enrollment_grant():" in resume
     assert "def has_enrollment_grant(self) -> bool:" in authority
@@ -758,6 +762,43 @@ def test_psu04_live_setup_accepts_only_a_started_diagnostic_and_open_reserved_an
     assert setup.smoke_tasks_match([diagnostic, enrollment_task], seed)
     enrollment_task.state = TaskState.STARTED
     assert not setup.smoke_tasks_match([diagnostic, enrollment_task], seed)
+
+
+def test_psu03_live_setup_keeps_the_plan_eligible_after_the_driver_closes_its_diagnostic():
+    setup = live_setup_module()
+    seed = seed_case(load_case(ROOT / "docs/supervisor/v2/proposal-evaluation-cases.json", "PSU-03"))
+    diagnostic = SimpleNamespace(
+        row_id=31, title=seed["tasks"]["title"], brief=seed["tasks"]["brief"],
+        state=TaskState.COMPLETED, supervisor_reserved=False, delegated=False,
+    )
+    anchor = seed["tasks"]["eligibility_anchor"]
+    enrollment_task = SimpleNamespace(
+        row_id=32, title=anchor["title"], brief=anchor["brief"],
+        state=TaskState.OPEN, supervisor_reserved=True, delegated=False,
+    )
+    plan = SimpleNamespace(row_id=41)
+    plans = SimpleNamespace(
+        find=lambda _plan_id: plan,
+        plan_tasks=lambda _plan: [diagnostic, enrollment_task],
+        started_task=lambda _plan: None,
+    )
+    tasks = SimpleNamespace(holder=lambda _task: None, unavailable_task_ids=lambda _rows: set())
+    connection = SimpleNamespace(cache=SimpleNamespace(cleared=lambda: None))
+    scope = SimpleNamespace(environment=lambda _environment_id: nullcontext())
+    repositories = {
+        setup.Connection: connection,
+        setup.Scope: scope,
+        setup.Plans: plans,
+        setup.Tasks: tasks,
+    }
+    app = SimpleNamespace(container=SimpleNamespace(get=lambda kind: repositories[kind]))
+
+    setup.ensure_smoke_task(app, SimpleNamespace(row_id=1), plan.row_id, seed, SimpleNamespace(row_id=2))
+    assert setup.smoke_tasks_match([diagnostic, enrollment_task], seed)
+
+    enrollment_task.state = TaskState.COMPLETED
+    with pytest.raises(setup.SetupFailure):
+        setup.ensure_smoke_task(app, SimpleNamespace(row_id=1), plan.row_id, seed, SimpleNamespace(row_id=2))
 
 
 def test_latest_run_passed_setup_controls_failure_then_pass_and_removes_its_run_state(tmp_path, monkeypatch):

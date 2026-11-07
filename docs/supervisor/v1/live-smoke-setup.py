@@ -159,13 +159,16 @@ def smoke_tasks_match(tasks, seed=None):
         specs = case_task_specs(seed)
         if len(tasks) != len(specs):
             return False
-        return all(
-            task.title == spec["title"] and task.brief == spec["brief"]
-            and task.supervisor_reserved == spec["supervisor_reserved"]
-            and (task.state == TaskState.OPEN if spec["supervisor_reserved"]
-                 else task.state in {TaskState.OPEN, TaskState.STARTED})
-            for task, spec in zip(tasks, specs, strict=True)
-        )
+        for index, (task, spec) in enumerate(zip(tasks, specs, strict=True)):
+            if (task.title != spec["title"] or task.brief != spec["brief"]
+                    or task.supervisor_reserved != spec["supervisor_reserved"]):
+                return False
+            valid_states = {TaskState.OPEN} if spec["supervisor_reserved"] else {TaskState.OPEN, TaskState.STARTED}
+            if index == 0 and seed["tasks"]["eligibility_anchor"] is not None:
+                valid_states.update({TaskState.COMPLETED, TaskState.CANCELLED})
+            if task.state not in valid_states:
+                return False
+        return True
     if len(tasks) != 1:
         return False
     task, = tasks
@@ -279,7 +282,7 @@ def ensure_smoke_task(app, main, plan_id, seed=None, driver=None):
         plan = plans.find(plan_id)
         tasks = plans.plan_tasks(plan)
         rows_match = smoke_tasks_match(tasks) if seed is None else smoke_tasks_match(tasks, seed)
-        if seed and seed["tasks"]["diagnostic"] == "matching_started_by_bound_driver":
+        if seed and seed["tasks"]["eligibility_anchor"] is not None:
             anchor = tasks[1] if len(tasks) == 2 else None
             started = plans.started_task(plan)
             driver_owns_task = bool(
@@ -289,7 +292,10 @@ def ensure_smoke_task(app, main, plan_id, seed=None, driver=None):
                 anchor and anchor.state == TaskState.OPEN and anchor.supervisor_reserved and not anchor.delegated
                 and tasks_repo.holder(anchor) is None and not tasks_repo.unavailable_task_ids([anchor])
             )
-            valid_plan_driver_work = driver_owns_task
+            valid_plan_driver_work = (
+                driver_owns_task if seed["tasks"]["diagnostic"] == "matching_started_by_bound_driver"
+                else started is None or driver_owns_task
+            )
         else:
             task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and tasks[0].supervisor_reserved and not tasks[0].delegated
                            and tasks_repo.holder(tasks[0]) is None

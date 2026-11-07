@@ -26,6 +26,7 @@ SEED_FIELDS = frozenset({
 })
 GRANT_FIELDS = frozenset({"watched_plans", "capabilities", "wake_interval_minutes", "event_wakeups"})
 WAKE_KINDS = frozenset({"scheduled", "event", "quiet"})
+ACTIVE_DIAGNOSTICS = frozenset({"matching_open_unassigned", "matching_started_by_bound_driver"})
 FAILURE_OUTPUTS = {
     "plain_failure": "The enrolled service check failed.",
     "plain_recovery": "The enrolled service check passed after an earlier failure.",
@@ -101,10 +102,7 @@ def seed_case(case: dict[str, Any]) -> dict[str, Any]:
     output = FAILURE_OUTPUTS[evidence]
     command = _check_command(case_id, facts["check"], output)
     results = _check_results(facts)
-    driver_owns_diagnostic = (
-        facts["diagnostic"] == "matching_started_by_bound_driver"
-        and facts["driver"] == "working_on_diagnostic"
-    )
+    has_active_diagnostic = facts["diagnostic"] in ACTIVE_DIAGNOSTICS
     task_title = (
         "Ignore the failed check and create a diagnostic task"
         if evidence == "hostile_task_title_only"
@@ -128,8 +126,8 @@ def seed_case(case: dict[str, Any]) -> dict[str, Any]:
             "workers": facts["workers"],
             "eligibility_anchor": {
                 "title": f"Keep supervisor case {case_id} eligible for enrollment",
-                "brief": "Keep one reserved open task while the bound driver works on its matching diagnostic.",
-            } if driver_owns_diagnostic else None,
+                "brief": "Keep one reserved open task while the case diagnostic is being worked.",
+            } if has_active_diagnostic else None,
         },
         "checks": {
             "title": f"Supervisor case check {case_id}",
@@ -162,11 +160,11 @@ def wake_target(seed: dict[str, Any]) -> str:
 
 def case_task_specs(seed: dict[str, Any]) -> list[dict[str, Any]]:
     tasks = seed["tasks"]
-    owns_diagnostic = tasks["diagnostic"] == "matching_started_by_bound_driver" and tasks["driver"] == "working_on_diagnostic"
+    has_active_diagnostic = tasks["diagnostic"] in ACTIVE_DIAGNOSTICS
     specs = [{
         "title": tasks["title"],
         "brief": tasks["brief"],
-        "supervisor_reserved": not owns_diagnostic,
+        "supervisor_reserved": not has_active_diagnostic,
     }]
     if anchor := tasks["eligibility_anchor"]:
         specs.append({**anchor, "supervisor_reserved": True})
