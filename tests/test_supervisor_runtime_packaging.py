@@ -725,7 +725,7 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
 
 def test_psu04_retry_recovers_its_started_plan_before_waiting_for_its_codex_agent():
     setup = live_setup_module()
-    seed = seed_case(load_case(PROFILE.parent.parent / "v2" / "proposal-evaluation-cases.json", "PSU-04"))
+    seed = seed_case(load_case(PROFILE.parent / "v2" / "proposal-evaluation-cases.json", "PSU-04"))
     plan = SimpleNamespace(
         row_id=17, title=seed["plan"]["title"], brief=seed["plan"]["brief"],
         state=setup.PlanState.STARTED, mode=setup.PlanMode.SOLO, mode_chosen=True,
