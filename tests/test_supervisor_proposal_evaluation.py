@@ -100,8 +100,10 @@ def test_active_diagnostic_cases_seed_a_reserved_open_eligibility_anchor(case_id
     assert len(tasks) == 2
     assert tasks[0]["title"] == seed["tasks"]["title"]
     assert tasks[0]["supervisor_reserved"] is False
+    assert tasks[0]["enrollment_supervisor_reserved"] is (case_id == "PSU-04")
     assert tasks[1]["title"] == seed["tasks"]["eligibility_anchor"]["title"]
     assert tasks[1]["supervisor_reserved"] is True
+    assert tasks[1]["enrollment_supervisor_reserved"] is True
 
 
 def test_latest_run_passed_check_reads_setup_state_without_changing_it():

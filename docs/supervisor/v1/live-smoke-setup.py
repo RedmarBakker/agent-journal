@@ -30,7 +30,12 @@ from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_link import SupervisorLink
-from supervisor_bridge.proposal_evaluation import case_check_marker, case_task_specs, load_seed
+from supervisor_bridge.proposal_evaluation import (
+    BOUND_DRIVER_STARTED_DIAGNOSTIC,
+    case_check_marker,
+    case_task_specs,
+    load_seed,
+)
 
 ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
@@ -139,7 +144,10 @@ def setup_plan_matches(plan, phases, tasks, seed=None):
             and len(phases) == 1
             and phases[0].title == f"Evaluation phase {seed['case_id']}"
             and phases[0].completion_rule == PHASE_COMPLETION
-            and smoke_tasks_match(tasks, seed)
+            and (
+                smoke_tasks_match(tasks, seed)
+                or smoke_enrollment_tasks_match(tasks, seed)
+            )
         )
     return (
         plan.title == PLAN_TITLE
@@ -174,6 +182,19 @@ def smoke_tasks_match(tasks, seed=None):
     task, = tasks
     return (task.title == TASK_TITLE and task.brief == TASK_BRIEF
             and task.state == TaskState.OPEN and task.supervisor_reserved)
+
+
+def smoke_enrollment_tasks_match(tasks, seed):
+    if seed is None or seed["tasks"]["diagnostic"] != BOUND_DRIVER_STARTED_DIAGNOSTIC:
+        return False
+    specs = case_task_specs(seed)
+    return len(tasks) == len(specs) and all(
+        task.title == spec["title"]
+        and task.brief == spec["brief"]
+        and task.state == TaskState.OPEN
+        and task.supervisor_reserved == spec["enrollment_supervisor_reserved"]
+        for task, spec in zip(tasks, specs, strict=True)
+    )
 
 
 def setup_check_id(app, seed=None):
@@ -262,7 +283,7 @@ def make_case_plan(app, seed):
     command("plan", "phase", str(plan_id), f"Evaluation phase {seed['case_id']}", "--when", PHASE_COMPLETION)
     for task_spec in case_task_specs(seed):
         task_id = row_number(command("plan", "add", str(plan_id), task_spec["title"], "--brief", task_spec["brief"], "--phase", "1"), r"task (\d+) added to plan .+")
-        if task_spec["supervisor_reserved"]:
+        if task_spec["enrollment_supervisor_reserved"]:
             status, _headers, task = request(f"/journal/tasks/{task_id}", {"supervisor_reserved": True})
             if status != 200 or task.get("supervisor_reserved") is not True:
                 raise SetupFailure("the owner could not reserve the evaluation task for supervisor diagnosis")
@@ -307,6 +328,80 @@ def ensure_smoke_task(app, main, plan_id, seed=None, driver=None):
             valid_plan_driver_work = no_task_in_hand
     if not rows_match or not task_unheld or not valid_plan_driver_work:
         raise SetupFailure("the staged Plan driver tasks do not match the supervisor evaluation case")
+
+
+def ensure_enrollment_smoke_task(app, main, plan_id, seed, driver):
+    if seed is None or seed["tasks"]["diagnostic"] != BOUND_DRIVER_STARTED_DIAGNOSTIC:
+        ensure_smoke_task(app, main, plan_id, seed, driver)
+        return
+    app.container.get(Connection).cache.cleared()
+    scope = app.container.get(Scope)
+    plans = app.container.get(Plans)
+    tasks_repo = app.container.get(Tasks)
+    authority = app.container.get(SupervisorAuthority)
+    with scope.environment(main.row_id):
+        plan = plans.find(plan_id)
+        tasks = plans.plan_tasks(plan)
+        idle_driver = bool(
+            driver and driver.state in ("leading_plan", "following_plan")
+            and authority.is_plan_driver_state(driver, plan.row_id)
+        )
+        anchor = tasks[1] if len(tasks) == 2 else None
+        anchor_unheld = bool(
+            anchor and anchor.state == TaskState.OPEN and anchor.supervisor_reserved and not anchor.delegated
+            and tasks_repo.holder(anchor) is None and not tasks_repo.unavailable_task_ids([anchor])
+        )
+        diagnostic_unheld = bool(
+            tasks and not tasks[0].delegated and tasks_repo.holder(tasks[0]) is None
+            and not tasks_repo.unavailable_task_ids([tasks[0]])
+        )
+        no_task_in_hand = plans.started_task(plan) is None
+    if (not smoke_enrollment_tasks_match(tasks, seed) or not idle_driver
+            or not anchor_unheld or not diagnostic_unheld or not no_task_in_hand):
+        raise SetupFailure("the bound Plan driver must be idle with its reserved diagnostic before enrollment")
+
+
+def release_case_diagnostic(app, main, plan_id, seed):
+    if seed is None or seed["tasks"]["diagnostic"] != BOUND_DRIVER_STARTED_DIAGNOSTIC:
+        return
+    app.container.get(Connection).cache.cleared()
+    scope = app.container.get(Scope)
+    plans = app.container.get(Plans)
+    tasks_repo = app.container.get(Tasks)
+    with scope.environment(main.row_id):
+        plan = plans.find(plan_id)
+        tasks = plans.plan_tasks(plan)
+        if (not smoke_enrollment_tasks_match(tasks, seed) or plans.started_task(plan) is not None
+                or tasks[0].delegated or tasks_repo.holder(tasks[0]) is not None
+                or tasks_repo.unavailable_task_ids([tasks[0]])):
+            raise SetupFailure("the reserved evaluation diagnostic changed before it could be released")
+        diagnostic = tasks[0]
+    status, _headers, answer = request(
+        f"/journal/tasks/{diagnostic.row_id}", {"supervisor_reserved": False},
+    )
+    if status != 200 or answer.get("supervisor_reserved") is not False:
+        raise SetupFailure("the owner could not release the reserved evaluation diagnostic")
+
+
+def wait_for_started_diagnostic(app, main, plan_id, seed, driver):
+    if seed is None or seed["tasks"]["diagnostic"] != BOUND_DRIVER_STARTED_DIAGNOSTIC:
+        return
+    deadline = time.monotonic() + WAIT_SECONDS
+    while time.monotonic() < deadline:
+        app.container.get(Connection).cache.cleared()
+        scope = app.container.get(Scope)
+        plans = app.container.get(Plans)
+        tasks_repo = app.container.get(Tasks)
+        with scope.environment(main.row_id):
+            plan = plans.find(plan_id)
+            tasks = plans.plan_tasks(plan)
+            started = plans.started_task(plan)
+            if (smoke_tasks_match(tasks, seed) and started
+                    and started.row_id == tasks[0].row_id
+                    and tasks_repo.holder(tasks[0]) == Ref.build(driver)):
+                return
+        time.sleep(1)
+    raise SetupFailure("the bound Codex Plan agent did not start the evaluation diagnostic")
 
 
 def run_bound_check(check_id, seed=None):
@@ -448,7 +543,7 @@ def main():
     main = wait_for_owner_runtime(app)
     plan_id, check_id, template_id = make_plan(app, main, seed)
     driver = wait_for_codex_plan(app, plan_id, main.row_id)
-    ensure_smoke_task(app, main, plan_id, seed, driver)
+    ensure_enrollment_smoke_task(app, main, plan_id, seed, driver)
     status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id, seed))
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""
@@ -464,6 +559,8 @@ def main():
     try:
         if seed:
             grant_version = configure_v2_grant(answer, seed)
+        release_case_diagnostic(app, main, plan_id, seed)
+        wait_for_started_diagnostic(app, main, plan_id, seed, driver)
         ensure_smoke_task(app, main, plan_id, seed, driver)
         if seed is None:
             run_bound_check(check_id)

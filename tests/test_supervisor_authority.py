@@ -36,7 +36,7 @@ from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.supervisor_entries import SupervisorEntries
-from journal.repositories.tasks import Tasks
+from journal.repositories.tasks import CURRENT_TASK_LINK, Tasks
 from journal.repositories.templates import Templates
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
@@ -331,6 +331,38 @@ def test_enrollment_stays_eligible_after_a_diagnostic_closes_when_its_anchor_rem
     )
 
     assert context["current_phase"]["phase_id"] == fixture.phase.row_id
+
+
+def test_enrollment_accepts_the_bound_driver_working_on_its_started_plan_task(app, authority_fixture):
+    fixture = authority_fixture
+    scope = app.container.get(Scope)
+    agents = app.container.get(Agents)
+    tasks = app.container.get(Tasks)
+    links = app.container.get(Links)
+    with scope.environment(fixture.owner_environment.row_id):
+        diagnostic = tasks.save(
+            fixture.task.plan_started(datetime(2026, 11, 7, tzinfo=timezone.utc), fixture.plan.row_id),
+            fixture.owner,
+        )
+    with scope.environment(fixture.driver_environment.row_id):
+        agent = agents.find(fixture.agent.row_id)
+        working = agent.with_(
+            state="working",
+            stack=(
+                {"state": "leading_plan", "data": {"plan_id": fixture.plan.row_id}},
+                {"state": "following_plan", "data": {"plan_id": fixture.plan.row_id}},
+                {"state": "working", "data": {"task_id": diagnostic.row_id}},
+            ),
+        )
+        agents.save(working, fixture.owner)
+        links.linked(Ref.build(working), Ref.build(diagnostic), CURRENT_TASK_LINK, fixture.owner)
+
+    context = fixture.authority.enrollment_context(
+        fixture.plan.row_id, (fixture.check.row_id,), str(fixture.template.row_id),
+    )
+
+    assert context["agent"].state == "working"
+    assert context["agent"].stack[-1]["data"]["task_id"] == diagnostic.row_id
 
 
 def test_enrollment_enforces_the_eighty_thousand_input_token_bound(app, authority_fixture):

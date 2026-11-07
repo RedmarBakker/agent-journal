@@ -696,6 +696,7 @@ def test_live_setup_reads_plan_and_child_rows_inside_the_main_environment_scope(
 def test_live_setup_resumes_only_its_started_unenrolled_plan():
     signature = live_setup_function_source("setup_plan_matches")
     smoke_tasks = live_setup_function_source("smoke_tasks_match")
+    enrollment_tasks = live_setup_function_source("smoke_enrollment_tasks_match")
     resume = live_setup_function_source("resume_plan")
     require_runtime = live_setup_function_source("require_runtime")
     make_plan = live_setup_function_source("make_plan")
@@ -711,6 +712,9 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert 'task.supervisor_reserved != spec["supervisor_reserved"]' in smoke_tasks
     assert 'valid_states = {TaskState.OPEN} if spec["supervisor_reserved"]' in smoke_tasks
     assert "valid_states.update({TaskState.COMPLETED, TaskState.CANCELLED})" in smoke_tasks
+    assert 'spec["enrollment_supervisor_reserved"]' in enrollment_tasks
+    assert "smoke_tasks_match(tasks, seed)" in signature
+    assert "smoke_enrollment_tasks_match(tasks, seed)" in signature
     assert "if not setup_plan_matches(plan, phases, tasks):" in resume
     assert "if authority.has_enrollment_grant():" in resume
     assert "def has_enrollment_grant(self) -> bool:" in authority
@@ -734,7 +738,7 @@ def test_psu04_retry_recovers_its_started_plan_before_waiting_for_its_codex_agen
     tasks = [
         SimpleNamespace(
             title=spec["title"], brief=spec["brief"], state=TaskState.OPEN,
-            supervisor_reserved=spec["supervisor_reserved"],
+            supervisor_reserved=spec["enrollment_supervisor_reserved"],
         )
         for spec in setup.case_task_specs(seed)
     ]
@@ -770,14 +774,28 @@ def test_psu04_retry_recovers_its_started_plan_before_waiting_for_its_codex_agen
 
 def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollment():
     make_plan = live_setup_function_source("make_plan")
+    make_case_plan = live_setup_function_source("make_case_plan")
     main = live_setup_function_source("main")
     command = live_setup_function_source("command")
     ensure_task = live_setup_function_source("ensure_smoke_task")
+    enrollment_task = live_setup_function_source("ensure_enrollment_smoke_task")
+    release_diagnostic = live_setup_function_source("release_case_diagnostic")
+    wait_for_diagnostic = live_setup_function_source("wait_for_started_diagnostic")
     run_check = live_setup_function_source("run_bound_check")
 
     assert make_plan.index('"supervisor_reserved": True') < make_plan.index('command("plan", "ready"')
+    assert 'task_spec["enrollment_supervisor_reserved"]' in make_case_plan
     assert main.index("wait_for_codex_plan") < main.index("ensure_smoke_task")
-    assert main.index("ensure_smoke_task") < main.index('request("/_supervisor/v1/enrollment"')
+    enrollment = main.index('request("/_supervisor/v1/enrollment"')
+    release = main.index("release_case_diagnostic")
+    wait = main.index("wait_for_started_diagnostic")
+    assert main.index("ensure_enrollment_smoke_task") < enrollment < release < wait
+    assert wait < main.index("ensure_smoke_task", wait) < main.index("run_case_checks(check_id, seed)")
+    assert 'smoke_enrollment_tasks_match(tasks, seed)' in enrollment_task
+    assert '"supervisor_reserved": False' in release_diagnostic
+    assert "deadline = time.monotonic() + WAIT_SECONDS" in wait_for_diagnostic
+    assert "while time.monotonic() < deadline:" in wait_for_diagnostic
+    assert "time.sleep(1)" in wait_for_diagnostic
     assert main.index('request("/_supervisor/v1/enrollment"') < main.index("run_bound_check(check_id)")
     assert 'smoke_tasks_match(tasks)' in ensure_task and 'tasks[0].supervisor_reserved' in ensure_task
     refresh = ensure_task.index("app.container.get(Connection).cache.cleared()")
@@ -845,6 +863,133 @@ def test_psu04_live_setup_matches_its_started_task_by_row_identity():
     app = SimpleNamespace(container=SimpleNamespace(get=lambda kind: repositories[kind]))
 
     setup.ensure_smoke_task(app, SimpleNamespace(row_id=1), plan.row_id, seed, driver)
+
+
+def test_psu04_enrollment_precheck_requires_an_idle_driver_and_reserved_diagnostic():
+    setup = live_setup_module()
+    seed = seed_case(load_case(PROFILE.parent / "v2" / "proposal-evaluation-cases.json", "PSU-04"))
+    specs = setup.case_task_specs(seed)
+    tasks_rows = [
+        SimpleNamespace(
+            row_id=index + 31, title=spec["title"], brief=spec["brief"], state=TaskState.OPEN,
+            supervisor_reserved=spec["enrollment_supervisor_reserved"], delegated=False,
+        )
+        for index, spec in enumerate(specs)
+    ]
+    driver = SimpleNamespace(row_id=63, state="following_plan", table=lambda: "agents")
+    plan = SimpleNamespace(row_id=41)
+    plans = SimpleNamespace(
+        find=lambda _plan_id: plan,
+        plan_tasks=lambda _plan: tasks_rows,
+        started_task=lambda _plan: None,
+    )
+    tasks = SimpleNamespace(holder=lambda _task: None, unavailable_task_ids=lambda _rows: set())
+    authority = SimpleNamespace(is_plan_driver_state=lambda _driver, _plan_id: True)
+    connection = SimpleNamespace(cache=SimpleNamespace(cleared=lambda: None))
+    scope = SimpleNamespace(environment=lambda _environment_id: nullcontext())
+    repositories = {
+        setup.Connection: connection,
+        setup.Scope: scope,
+        setup.Plans: plans,
+        setup.Tasks: tasks,
+        setup.SupervisorAuthority: authority,
+    }
+    app = SimpleNamespace(container=SimpleNamespace(get=lambda kind: repositories[kind]))
+    main = SimpleNamespace(row_id=1)
+
+    setup.ensure_enrollment_smoke_task(app, main, plan.row_id, seed, driver)
+
+    driver.state = "working"
+    plans.started_task = lambda _plan: SimpleNamespace(row_id=tasks_rows[0].row_id)
+    with pytest.raises(setup.SetupFailure, match="must be idle"):
+        setup.ensure_enrollment_smoke_task(app, main, plan.row_id, seed, driver)
+
+
+def test_psu04_live_setup_waits_for_the_bound_driver_to_start_its_diagnostic(monkeypatch):
+    setup = live_setup_module()
+    seed = seed_case(load_case(PROFILE.parent / "v2" / "proposal-evaluation-cases.json", "PSU-04"))
+    diagnostic = SimpleNamespace(
+        row_id=31, title=seed["tasks"]["title"], brief=seed["tasks"]["brief"],
+        state=TaskState.OPEN, supervisor_reserved=False,
+    )
+    anchor = seed["tasks"]["eligibility_anchor"]
+    enrollment_task = SimpleNamespace(
+        row_id=32, title=anchor["title"], brief=anchor["brief"],
+        state=TaskState.OPEN, supervisor_reserved=True,
+    )
+    driver = SimpleNamespace(row_id=63, table=lambda: "agents")
+    plan = SimpleNamespace(row_id=41)
+    polls = 0
+
+    def plan_tasks(_plan):
+        nonlocal polls
+        polls += 1
+        if polls == 2:
+            diagnostic.state = TaskState.STARTED
+        return [diagnostic, enrollment_task]
+
+    plans = SimpleNamespace(
+        find=lambda _plan_id: plan,
+        plan_tasks=plan_tasks,
+        started_task=lambda _plan: SimpleNamespace(row_id=diagnostic.row_id) if diagnostic.state == TaskState.STARTED else None,
+    )
+    tasks = SimpleNamespace(
+        holder=lambda task: setup.Ref.build(driver) if task.state == TaskState.STARTED else None,
+    )
+    connection = SimpleNamespace(cache=SimpleNamespace(cleared=lambda: None))
+    scope = SimpleNamespace(environment=lambda _environment_id: nullcontext())
+    repositories = {setup.Connection: connection, setup.Scope: scope, setup.Plans: plans, setup.Tasks: tasks}
+    app = SimpleNamespace(container=SimpleNamespace(get=lambda kind: repositories[kind]))
+    now = [0]
+    monkeypatch.setattr(setup, "WAIT_SECONDS", 2)
+    monkeypatch.setattr(setup.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(setup.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+
+    setup.wait_for_started_diagnostic(app, SimpleNamespace(row_id=1), plan.row_id, seed, driver)
+
+    assert polls == 2 and now[0] == 1
+    assert diagnostic.state == TaskState.STARTED
+
+
+def test_psu04_live_setup_stops_waiting_when_the_diagnostic_never_starts(monkeypatch):
+    setup = live_setup_module()
+    seed = seed_case(load_case(PROFILE.parent / "v2" / "proposal-evaluation-cases.json", "PSU-04"))
+    diagnostic = SimpleNamespace(
+        row_id=31, title=seed["tasks"]["title"], brief=seed["tasks"]["brief"],
+        state=TaskState.OPEN, supervisor_reserved=False,
+    )
+    anchor = seed["tasks"]["eligibility_anchor"]
+    enrollment_task = SimpleNamespace(
+        row_id=32, title=anchor["title"], brief=anchor["brief"],
+        state=TaskState.OPEN, supervisor_reserved=True,
+    )
+    plan = SimpleNamespace(row_id=41)
+    plans = SimpleNamespace(
+        find=lambda _plan_id: plan,
+        plan_tasks=lambda _plan: [diagnostic, enrollment_task],
+        started_task=lambda _plan: None,
+    )
+    tasks = SimpleNamespace(holder=lambda _task: None)
+    connection = SimpleNamespace(cache=SimpleNamespace(cleared=lambda: None))
+    scope = SimpleNamespace(environment=lambda _environment_id: nullcontext())
+    repositories = {setup.Connection: connection, setup.Scope: scope, setup.Plans: plans, setup.Tasks: tasks}
+    app = SimpleNamespace(container=SimpleNamespace(get=lambda kind: repositories[kind]))
+    now = [0]
+    polls = [0]
+
+    def plan_tasks(_plan):
+        polls[0] += 1
+        return [diagnostic, enrollment_task]
+
+    plans.plan_tasks = plan_tasks
+    monkeypatch.setattr(setup, "WAIT_SECONDS", 2)
+    monkeypatch.setattr(setup.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(setup.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+
+    with pytest.raises(setup.SetupFailure, match="did not start the evaluation diagnostic"):
+        setup.wait_for_started_diagnostic(app, SimpleNamespace(row_id=1), plan.row_id, seed, SimpleNamespace(row_id=63, table=lambda: "agents"))
+
+    assert polls[0] == 2 and now[0] == setup.WAIT_SECONDS
 
 
 def test_psu03_live_setup_keeps_the_plan_eligible_after_the_driver_closes_its_diagnostic():

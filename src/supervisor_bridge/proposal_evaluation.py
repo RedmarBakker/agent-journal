@@ -26,7 +26,8 @@ SEED_FIELDS = frozenset({
 })
 GRANT_FIELDS = frozenset({"watched_plans", "capabilities", "wake_interval_minutes", "event_wakeups"})
 WAKE_KINDS = frozenset({"scheduled", "event", "quiet"})
-ACTIVE_DIAGNOSTICS = frozenset({"matching_open_unassigned", "matching_started_by_bound_driver"})
+BOUND_DRIVER_STARTED_DIAGNOSTIC = "matching_started_by_bound_driver"
+ACTIVE_DIAGNOSTICS = frozenset({"matching_open_unassigned", BOUND_DRIVER_STARTED_DIAGNOSTIC})
 FAILURE_OUTPUTS = {
     "plain_failure": "The enrolled service check failed.",
     "plain_recovery": "The enrolled service check passed after an earlier failure.",
@@ -161,13 +162,17 @@ def wake_target(seed: dict[str, Any]) -> str:
 def case_task_specs(seed: dict[str, Any]) -> list[dict[str, Any]]:
     tasks = seed["tasks"]
     has_active_diagnostic = tasks["diagnostic"] in ACTIVE_DIAGNOSTICS
+    reserve_for_enrollment = (
+        not has_active_diagnostic or tasks["diagnostic"] == BOUND_DRIVER_STARTED_DIAGNOSTIC
+    )
     specs = [{
         "title": tasks["title"],
         "brief": tasks["brief"],
         "supervisor_reserved": not has_active_diagnostic,
+        "enrollment_supervisor_reserved": reserve_for_enrollment,
     }]
     if anchor := tasks["eligibility_anchor"]:
-        specs.append({**anchor, "supervisor_reserved": True})
+        specs.append({**anchor, "supervisor_reserved": True, "enrollment_supervisor_reserved": True})
     return specs
 
 

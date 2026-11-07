@@ -520,6 +520,35 @@ def test_replayed_work_signal_does_not_reassign_or_duplicate(app: App, normal_dr
     assert replayed.state == TaskState.STARTED and replayed.started_at == started_at and len(deliveries) == 1 and len(announced) == 1, "a repeated work signal does not start the diagnostic again or duplicate delivery evidence"
 
 
+def test_working_bound_driver_remains_eligible_for_its_started_diagnostic(app: App, normal_driver: Fixture):
+    fixture = normal_driver
+    diagnostic = add_phase_task(app, fixture, "working diagnostic", "Keep the started diagnostic in the bound plan")
+    scope = app.container.get(Scope)
+    agents, tasks = app.container.get(Agents), app.container.get(Tasks)
+    with scope.environment(fixture.driver_environment.row_id):
+        agent = agents.unended_agent(fixture.agent.row_id)
+    with scope.environment(fixture.owner_environment.row_id):
+        started = tasks.holder_started(
+            diagnostic.plan_started(app.container.get(TimeSource).moment(), fixture.plan.row_id),
+            Ref.build(agent), fixture.owner,
+        )
+    with scope.environment(fixture.driver_environment.row_id):
+        working = agents.find(agent.row_id).with_(
+            state="working",
+            stack=(
+                {"state": "leading_plan", "data": {"plan_id": fixture.plan.row_id}},
+                {"state": "following_plan", "data": {"plan_id": fixture.plan.row_id}},
+                {"state": "working", "data": {"task_id": started.row_id}},
+            ),
+        )
+        agents.save(working, fixture.owner)
+
+    availability = app.container.get(SupervisorWorkAvailable)
+
+    assert fixture.authority.is_plan_driver_state(working, fixture.plan.row_id)
+    assert availability.current_diagnostic(fixture.plan, fixture.phase.row_id, started.row_id, working)
+
+
 def test_generic_entry_writes_cannot_forge_supervisor_delivery_evidence(app: App):
     with app.container.get(Scope).environment(PROJECT):
         with pytest.raises(Rejection):
