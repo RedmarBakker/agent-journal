@@ -357,12 +357,14 @@ def test_enrollment_accepts_the_bound_driver_working_on_its_started_plan_task(ap
         agents.save(working, fixture.owner)
         links.linked(Ref.build(working), Ref.build(diagnostic), CURRENT_TASK_LINK, fixture.owner)
 
-    context = fixture.authority.enrollment_context(
+    fixture.authority.enrollment_context(
         fixture.plan.row_id, (fixture.check.row_id,), str(fixture.template.row_id),
     )
+    with scope.environment(fixture.driver_environment.row_id):
+        accepted = agents.find(fixture.agent.row_id)
 
-    assert context["agent"].state == "working"
-    assert context["agent"].stack[-1]["data"]["task_id"] == diagnostic.row_id
+    assert accepted.state == "working"
+    assert accepted.stack[-1]["data"]["task_id"] == diagnostic.row_id
 
 
 def test_enrollment_enforces_the_eighty_thousand_input_token_bound(app, authority_fixture):
