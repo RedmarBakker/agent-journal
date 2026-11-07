@@ -174,6 +174,7 @@ def test_launch_parses_flags_and_builds_the_commands(tmp_path: Path):
 
 def test_plan_driver_hooks_receive_the_broker_port_and_private_runtime(tmp_path: Path, monkeypatch):
     import journal.launcher.launch as launch_module
+    from journal.support.supervisor_socket import SupervisorSocket
 
     project = tmp_path / "project"
     project.mkdir()
@@ -184,10 +185,12 @@ def test_plan_driver_hooks_receive_the_broker_port_and_private_runtime(tmp_path:
     monkeypatch.setenv("CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_PORT", "8421")
+    monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", str(SupervisorSocket.plan_driver_path("plan-1")))
 
     launch = Launch.parse(["codex", "--env", "plan-1", "--no-open", "--no-journal"], project)
     environment = launch.environ(Choice("plan-1"), "launch-1")
 
+    assert launch.is_plan_driver
     assert environment["JOURNAL_PORT"] == "8421"
     assert environment["JOURNAL_HOOK_RUNTIME"] == str(driver_home / "journal-runtime")
     assert str(project / ".journal") not in environment["PATH"]
