@@ -823,7 +823,7 @@ def test_psu04_live_setup_matches_its_started_task_by_row_identity():
         state=TaskState.OPEN, supervisor_reserved=True, delegated=False,
     )
     started_snapshot = SimpleNamespace(row_id=diagnostic.row_id, repository_read="started task query")
-    driver = SimpleNamespace(row_id=63)
+    driver = SimpleNamespace(row_id=63, table=lambda: "agents")
     plan = SimpleNamespace(row_id=41)
     plans = SimpleNamespace(
         find=lambda _plan_id: plan,
