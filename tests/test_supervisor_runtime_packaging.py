@@ -867,7 +867,7 @@ def test_latest_run_passed_setup_controls_failure_then_pass_and_removes_its_run_
     assert not marker.exists()
 
 
-def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypatch):
+def test_plan_driver_launch_uses_its_own_launch_file_without_taking_over_main(tmp_path, monkeypatch):
     import json
     import tomllib
     from types import SimpleNamespace
@@ -884,6 +884,10 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     hooks_file = worktree / ".codex" / "hooks.json"
     driver_home = tmp_path / "driver-home"
     driver_home.mkdir()
+    owner_launch = project / ".journal" / "runtime" / "launches" / "main.json"
+    owner_launch.parent.mkdir(parents=True)
+    owner_launch_contents = json.dumps({"owner": 4242, "launch": "owner-main"})
+    owner_launch.write_text(owner_launch_contents)
     launch_files = []
     launch_data = []
 
@@ -902,16 +906,24 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_PORT", "8421")
     monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", str(SupervisorSocket.plan_driver_path("plan-1")))
+    monkeypatch.setattr(launch_module.ProcessCheck, "is_running", lambda _owner: True)
+    monkeypatch.setattr(launch_module.os, "getpgid", lambda _pid: 1)
+    monkeypatch.setattr(launch_module.os, "killpg", lambda *_args: pytest.fail("the Plan driver cannot stop the owner's main launch"))
+    monkeypatch.setattr(launch_module.os, "kill", lambda *_args: pytest.fail("the Plan driver cannot stop the owner's main launch"))
     monkeypatch.setattr(launch_module.Launch, "health_numbers", owner_port_read)
     monkeypatch.setattr(launch_module.Menu, "journal", owner_port_read)
     monkeypatch.setattr(launch_module.PageWait, "start", owner_port_read)
     monkeypatch.setattr(launch_module.subprocess, "run", run_supervisor)
 
     launch = launch_module.Launch.parse(
-        ["codex", "--env", "plan-1", "--worktree", "plan-1", "--no-journal"], project
+        ["codex", "--env", "main", "--no-journal"], project
     )
 
+    assert launch.is_plan_driver
+    assert launch.driver_choice().environment == "plan-1"
+    launch.stop_earlier_launch(owner_launch)
     assert launch.run() == 0
+    assert owner_launch.read_text() == owner_launch_contents
     assert (driver_home / "journal-runtime" / "supervisor.log").is_file()
     assert launch_files == [driver_home / "journal-runtime" / "launches" / "plan-1.json"]
     assert launch_data[0]["socket"] == str(SupervisorSocket.plan_driver_path("plan-1"))

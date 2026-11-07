@@ -119,8 +119,7 @@ class Launch:
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed, worktree)
 
     def driver_choice(self) -> Choice:
-        worktree = bool(self.worktree or self.worktree_launch)
-        return Choice(self.environment, "", self.stashed, self.is_skipping(), worktree)
+        return Choice(self.plan_driver_environment, "", self.stashed, self.is_skipping(), True)
 
     def unused_name(self, menu: Menu) -> str:
         if not self.worktree_launch or self.environment or RESUME_FLAGS & set(self.args):
@@ -290,6 +289,8 @@ class Launch:
                 path.unlink()
 
     def stop_earlier_launch(self, path: Path) -> None:
+        if self.is_plan_driver:
+            return
         owner = int(json.loads(path.read_text()).get("owner", 0)) if path.is_file() else 0
         if not owner or owner == os.getpid() or not ProcessCheck.is_running(owner):
             return
@@ -364,13 +365,21 @@ class Launch:
         driver_home = os.environ.get("JOURNAL_CODEX_HOME", "")
         return (
             os.getuid() == PLAN_DRIVER_UID
-            and self.environment.startswith("plan-")
             and bool(driver_home)
             and os.environ.get("CODEX_HOME") == driver_home
+            and bool(self.plan_driver_environment)
         )
 
+    @property
+    def plan_driver_environment(self) -> str:
+        assigned = Path(os.environ.get("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", ""))
+        if not re.fullmatch(r"plan-[1-9][0-9]*\.sock", assigned.name):
+            return ""
+        environment = assigned.stem
+        return environment if assigned == SupervisorSocket.plan_driver_path(environment) else ""
+
     def driver_worktree(self, choice: Choice) -> Path:
-        name = self.worktree or choice.environment
+        name = self.plan_driver_environment
         folder = self.root / ".claude" / "worktrees" / name
         if folder.is_symlink() or not folder.is_dir():
             raise WorktreeFailure(name, "the restricted Plan driver requires its prepared worktree")
