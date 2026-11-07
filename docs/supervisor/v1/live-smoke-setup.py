@@ -288,7 +288,8 @@ def ensure_smoke_task(app, main, plan_id, seed=None, driver=None):
             anchor = tasks[1] if len(tasks) == 2 else None
             started = plans.started_task(plan)
             driver_owns_task = bool(
-                driver and started == tasks[0] and tasks_repo.holder(tasks[0]) == Ref.build(driver)
+                driver and started and started.row_id == tasks[0].row_id
+                and tasks_repo.holder(tasks[0]) == Ref.build(driver)
             ) if len(tasks) == 2 else False
             task_unheld = bool(
                 anchor and anchor.state == TaskState.OPEN and anchor.supervisor_reserved and not anchor.delegated
