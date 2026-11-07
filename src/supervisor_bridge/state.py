@@ -354,7 +354,7 @@ class StateStore:
             already_settled = same_receipt and state["usage_settlement"] == "settled"
             settled = (
                 metering["run_ref"] == run.to_dict()
-                and (metering["status"] in {"known", "capped"} or already_settled)
+                and (metering["status"] in {"known", "capped", "settled"} or already_settled)
                 and metering["provider_requests"] > 0
                 and not uncertain
             )
@@ -535,6 +535,11 @@ class StateStore:
         descriptor = os.open(self.provider_lock_path, os.O_CREAT | os.O_RDWR, 0o660)
         return ProviderLock(descriptor)
 
+    def provider_exclusive(self):
+        self.directory.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(self.provider_lock_path, os.O_CREAT | os.O_RDWR, 0o660)
+        return StateLock(descriptor)
+
     @staticmethod
     def empty_state() -> dict:
         return {
@@ -595,6 +600,12 @@ class StateStore:
             raise StateError("the provider usage exceeds the admitted run limits")
         return self.usage_summary(metering)
 
+    def usage_is_settled(self, run: RunReference) -> bool:
+        state = self.snapshot()
+        if state["active_run"] != run.to_dict() or state["metering"]["run_ref"] != run.to_dict():
+            raise StateError("usage settlement does not match the active fenced run")
+        return state["usage_settlement"] == "settled"
+
     def record_usage_settlement(self, run: RunReference, settlement: dict) -> None:
         if (not isinstance(settlement, dict)
                 or set(settlement) != {"status", "usage_id", "run_id", "fence", "usage_status", "duplicate"}
@@ -610,6 +621,8 @@ class StateStore:
                     or metering["status"] not in {"known", "capped"}
                     or metering["pending_request"] is not None):
                 raise StateError("journal usage settlement has no complete active provider meter")
+            metering["status"] = "settled"
+            metering["preflight_input_tokens"] = None
             state["usage_settlement"] = "settled"
             state["health"] = "up"
             state["last_error"] = ""

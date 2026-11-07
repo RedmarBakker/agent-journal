@@ -216,13 +216,16 @@ class SupervisorBridge:
         reference = self.reference_from_action(arguments)
         run = self.require_active(reference.to_dict())
         action = action_request(run, arguments)
-        usage = self.state.settlement_usage(run)
-        settlement = self.call_service(self.client.settle_usage, run, usage)
-        self.state.record_usage_settlement(run, settlement)
-        receipt = self.call_service(self.client.apply, action)
-        self.validate_receipt(receipt, run)
-        self.state.record_receipt(receipt, run)
-        return receipt
+        with self.state.provider_exclusive():
+            run = self.require_active(reference.to_dict())
+            if not self.state.usage_is_settled(run):
+                usage = self.state.settlement_usage(run)
+                settlement = self.call_service(self.client.settle_usage, run, usage)
+                self.state.record_usage_settlement(run, settlement)
+            receipt = self.call_service(self.client.apply, action)
+            self.validate_receipt(receipt, run)
+            self.state.record_receipt(receipt, run)
+            return receipt
 
     def receipt(self, run_ref: object) -> dict:
         run = self.require_active(run_ref)

@@ -4,6 +4,7 @@ import json
 from io import BytesIO
 from pathlib import Path
 from shutil import copytree
+from threading import Event, Thread
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -1218,6 +1219,88 @@ def test_run_or_propose_returns_journal_selected_proposal(tmp_path):
     assert receipt["verification"] == "not_applied"
     assert "mode" not in server.schemas[RUN_OR_PROPOSE_TOOL]["properties"]
     assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
+
+
+def test_proposal_settles_final_provider_usage_once_after_inflight_request(tmp_path):
+    state = metered_state_with_usage(tmp_path)
+    provider = StubProvider([provider_input_tokens(4), provider_response(4, 1)])
+    proxy = MeteringProxy(state, provider)
+    request_started = Event()
+    finish_request = Event()
+    provider_post = provider.post
+
+    def held_provider_post(path, payload, accept):
+        if path == "/v1/messages/count_tokens":
+            request_started.set()
+            assert finish_request.wait(timeout=2)
+        return provider_post(path, payload, accept)
+
+    provider.post = held_provider_post
+    failures = []
+
+    def finish_provider_request():
+        try:
+            proxy.forward(model_request())
+        except Exception as error:
+            failures.append(error)
+
+    request_thread = Thread(target=finish_provider_request)
+    request_thread.start()
+    assert request_started.wait(timeout=2)
+
+    journal = ProposalJournal()
+    bridge = SupervisorBridge(journal, state)
+    settlement_started = Event()
+    lock_attempted = Event()
+    original_provider_exclusive = state.provider_exclusive
+    original_settle_usage = journal.settle_usage
+
+    def tracked_provider_exclusive():
+        lock_attempted.set()
+        return original_provider_exclusive()
+
+    def tracked_settle_usage(run, usage):
+        settlement_started.set()
+        return original_settle_usage(run, usage)
+
+    state.provider_exclusive = tracked_provider_exclusive
+    journal.settle_usage = tracked_settle_usage
+    action_receipts = []
+
+    def apply_proposal():
+        try:
+            action_receipts.append(bridge.apply(action_arguments()))
+        except Exception as error:
+            failures.append(error)
+
+    action_thread = Thread(target=apply_proposal)
+    action_thread.start()
+    assert lock_attempted.wait(timeout=2)
+    assert not settlement_started.is_set()
+    finish_request.set()
+    request_thread.join(timeout=2)
+    action_thread.join(timeout=2)
+
+    assert not request_thread.is_alive()
+    assert not action_thread.is_alive()
+    assert failures == []
+    assert action_receipts[0]["status"] == "proposed"
+    assert action_receipts[0]["verification"] == "not_applied"
+    assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
+    assert journal.calls[0][2] == {
+        "input_tokens": 7, "output_tokens": 3, "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0, "total_input_tokens": 7, "provider_requests": 4,
+        "provider_retries": 0,
+    }
+    assert state.snapshot()["receipt"]["status"] == "proposed"
+    assert state.snapshot()["metering"]["status"] == "settled"
+
+    retried_receipt = bridge.apply(action_arguments())
+
+    assert retried_receipt["status"] == "proposed"
+    assert [call[0] for call in journal.calls] == ["settle_usage", "apply", "apply"]
+    with pytest.raises(MeteringError, match="provider budget is closed"):
+        proxy.forward(model_request())
 
 
 def test_run_or_propose_refuses_a_never_catalogue_verb_before_settlement(tmp_path):
