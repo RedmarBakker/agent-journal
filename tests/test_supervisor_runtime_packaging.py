@@ -718,8 +718,54 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert 'if TOKEN_FILE.exists():' in require_runtime
     assert "if plan_id := existing_plan_id(existing):\n        return resume_plan(app, main, plan_id)" in make_plan
     assert "check_id = setup_check_id(app, seed)" in resume
-    assert "return plan_id, check_id, setup_template_id(app)" in resume
+    assert "template_id = setup_template_id(app)" in resume
+    assert "app.container.get(PlanAgents).recover(plan)" in resume
     assert resume.count("return ") == 1
+
+
+def test_psu04_retry_recovers_its_started_plan_before_waiting_for_its_codex_agent():
+    setup = live_setup_module()
+    seed = seed_case(load_case(PROFILE.parent.parent / "v2" / "proposal-evaluation-cases.json", "PSU-04"))
+    plan = SimpleNamespace(
+        row_id=17, title=seed["plan"]["title"], brief=seed["plan"]["brief"],
+        state=setup.PlanState.STARTED, mode=setup.PlanMode.SOLO, mode_chosen=True,
+    )
+    phase = SimpleNamespace(title=f"Evaluation phase {seed['case_id']}", completion_rule=setup.PHASE_COMPLETION)
+    tasks = [
+        SimpleNamespace(
+            title=spec["title"], brief=spec["brief"], state=TaskState.OPEN,
+            supervisor_reserved=spec["supervisor_reserved"],
+        )
+        for spec in setup.case_task_specs(seed)
+    ]
+    check = SimpleNamespace(
+        row_id=23, title=seed["checks"]["title"], brief=seed["checks"]["brief"],
+        command=seed["checks"]["command"], interval=10, wait_target=None, is_retired=False,
+    )
+    template = SimpleNamespace(
+        row_id=29, title=setup.TEMPLATE_TITLE, brief=setup.TEMPLATE_BRIEF,
+        purpose=setup.TEMPLATE_PURPOSE, targets=("plan",),
+    )
+    recovered = []
+    plans = SimpleNamespace(
+        find=lambda _plan_id: plan,
+        plan_phases=lambda _plan: [phase],
+        plan_tasks=lambda _plan: tasks,
+    )
+    repositories = {
+        setup.Scope: SimpleNamespace(environment=lambda _environment_id: nullcontext()),
+        setup.Plans: plans,
+        setup.SupervisorAuthority: SimpleNamespace(has_enrollment_grant=lambda: False),
+        setup.Checks: SimpleNamespace(matching=lambda **_filters: [check]),
+        setup.Templates: SimpleNamespace(matching=lambda **_filters: [template]),
+        setup.PlanAgents: SimpleNamespace(recover=recovered.append),
+    }
+    app = SimpleNamespace(container=SimpleNamespace(get=lambda kind: repositories[kind]))
+
+    result = setup.resume_plan(app, SimpleNamespace(row_id=1), plan.row_id, seed)
+
+    assert result == (plan.row_id, check.row_id, str(template.row_id))
+    assert recovered == [plan]
 
 
 def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollment():

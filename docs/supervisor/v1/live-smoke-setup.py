@@ -213,7 +213,9 @@ def resume_plan(app, main, plan_id, seed=None):
     if authority.has_enrollment_grant():
         raise SetupFailure("a supervisor enrollment grant already exists in this writer")
     check_id = setup_check_id(app, seed)
-    return plan_id, check_id, setup_template_id(app)
+    template_id = setup_template_id(app)
+    app.container.get(PlanAgents).recover(plan)
+    return plan_id, check_id, template_id
 
 
 def existing_plan_id(output, seed=None):
