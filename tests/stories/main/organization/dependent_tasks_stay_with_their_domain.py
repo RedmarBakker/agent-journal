@@ -23,7 +23,7 @@ from journal.support.agent_token import AgentToken
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.dependent_task_organization_worktree import DependentTaskOrganizationWorktree
+from tests.stories.fixtures.main.organization_plan_agent_worktree_project import OrganizationPlanAgentWorktreeProject
 
 
 WORKTREE_AGENT_SESSION = "dependent-domain-worktree-session"
@@ -31,7 +31,7 @@ TASK_BRIEF = "- Engineering uses the Security result and saves SECURITY.md"
 SECURITY_BRIEF = "- Security records the policy decision"
 
 
-@story(DependentTaskOrganizationWorktree, subject=AgentRole.MAIN)
+@story(OrganizationPlanAgentWorktreeProject, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_dependent_task(story):
     root = story.app.config.root
