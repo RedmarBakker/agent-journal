@@ -7,7 +7,6 @@ from dataclasses import asdict
 from itertools import islice
 from pathlib import Path
 
-from journal.support.chain import Chain
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_part import CommandPart
 from journal.support.part import Part
@@ -22,7 +21,6 @@ class OutputFiles:
 
     def __init__(self, folder: Path) -> None:
         self.folder = folder
-        self._part_texts: list[str] = []
 
     def shell_started(self, pid: int) -> None:
         (self.folder / "pid").write_text(str(pid))
@@ -122,10 +120,9 @@ class OutputFiles:
     def split(self, line: str, parts: list[Part], classifier: CommandClassifier) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         (self.folder / "line").write_text(line)
-        self._part_texts = [part.uncut().text for part in parts]
         commands = [CommandPart.plain(part.text, classifier) for part in parts]
         for i, (part, command) in enumerate(zip(parts, commands)):
-            (self.folder / f"{i}.part").write_text(self._part_texts[i])
+            (self.folder / f"{i}.part").write_text(part.uncut().text)
             (self.folder / f"{i}.command").write_text(json.dumps(asdict(command)))
             if part.cut():
                 (self.folder / f"{i}.cut").write_text(part.cut_command())
@@ -143,12 +140,7 @@ class OutputFiles:
         return 0 <= i < len(self.kinds())
 
     def part_text(self, i: int) -> str:
-        if 0 <= i < len(self._part_texts):
-            return self._part_texts[i]
-        path = self.folder / f"{i}.part"
-        if path.is_file():
-            return path.read_text()
-        return Chain.parts((self.folder / "line").read_text())[i].uncut().text
+        return (self.folder / f"{i}.part").read_text()
 
     def has_test_run(self) -> bool:
         return any(self.command_part(i).classification.is_test_run for i in self.recorded() if (self.folder / f"{i}.command").is_file())
