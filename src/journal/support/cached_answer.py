@@ -1,3 +1,4 @@
+import math
 import threading
 import time
 from typing import Callable, Generic, TypeVar
@@ -5,6 +6,7 @@ from typing import Callable, Generic, TypeVar
 from journal.support.timeout import Timeout
 
 T = TypeVar("T")
+NEVER_ASKED = -math.inf
 
 
 class CachedAnswer(Generic[T]):
@@ -12,7 +14,7 @@ class CachedAnswer(Generic[T]):
 
     def __init__(self, inquiry: Callable[[], T], retention: float, first: T) -> None:
         self.ask, self.kept_for = inquiry, retention
-        self.value, self.asked_at, self.asked_on = first, 0.0, 0.0
+        self.value, self.asked_at, self.asked_on = first, NEVER_ASKED, 0.0
         self._asking = threading.Lock()
 
     def time(self) -> T:
@@ -28,13 +30,13 @@ class CachedAnswer(Generic[T]):
         return self.value
 
     def discard(self) -> None:
-        self.asked_at = 0.0
+        self.asked_at = NEVER_ASKED
 
     def is_asking(self) -> bool:
         return self._asking.locked()
 
     def drop(self) -> None:
-        self.asked_at = self.asked_on = 0.0
+        self.asked_at, self.asked_on = NEVER_ASKED, 0.0
 
     def repeat(self) -> None:
         try:
