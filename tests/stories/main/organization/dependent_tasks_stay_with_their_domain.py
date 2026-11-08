@@ -23,7 +23,7 @@ from journal.support.agent_token import AgentToken
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.organization_plan_agent_worktree_project import OrganizationPlanAgentWorktreeProject
+from tests.stories.fixtures.main.dependent_task_organization_worktree import DependentTaskOrganizationWorktree
 
 
 WORKTREE_AGENT_SESSION = "dependent-domain-worktree-session"
@@ -31,7 +31,7 @@ TASK_BRIEF = "- Engineering uses the Security result and saves SECURITY.md"
 SECURITY_BRIEF = "- Security records the policy decision"
 
 
-@story(OrganizationPlanAgentWorktreeProject, subject=AgentRole.MAIN)
+@story(DependentTaskOrganizationWorktree, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_dependent_task(story):
     root = story.app.config.root
@@ -178,6 +178,7 @@ def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_depend
     )
     story.expect_no_user_message_text_in(source, TASK_BRIEF)
     story.organization_role_seat_starts_a_session(worker, "role:engineering/builder").expect_allowed(worker)
+    story.expect_worker_session(worker, story.session_of(worker))
     story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", "clock-in").expect_command_passed()
     task_details = story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", f"task show {engineering}")
     task_details.expect_command_passed()

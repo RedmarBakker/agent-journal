@@ -89,7 +89,6 @@ class WorkerSteps:
     def organization_role_seat_starts_a_session(self, agent: StoryAgent, seat: str) -> StepResult:
         member = self.organization_seat_member(seat)
         environment = self.openrig_organization_seat_environment(seat)
-        self.simulated_seats().start_session(member.target, environment)
         session = str(self.simulated_seats().sessions[member.target]["sessionId"])
         journal_environment = environment["JOURNAL_ENV"]
         self.worker_sessions[agent.number] = session
