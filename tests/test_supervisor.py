@@ -222,9 +222,11 @@ def test_the_launch_notices_the_journals_page_when_it_answers(tmp_path: Path, mo
     app.server().start()
     try:
         from journal.launcher.support.page_wait import PageWait
+        from journal.support.choice import Choice
         line_text, opened = [], []
-        waiting = PageWait(tmp_path / ".journal" / "port", "/tmp/no-supervisor.sock", ("agent-journal", "p · main"), "", line_text.append)
-        assert waiting.is_responsive() == f"http://127.0.0.1:{app.server().port}/", "the launch sees the page answer, with no supervisor to tell"
+        launch = {"socket": "/tmp/no-supervisor.sock", "band": {"left": "agent-journal", "middle": "p · main"}}
+        waiting = Launch.parse(["claude", "--env", "main", "--no-open", "--no-journal"], tmp_path).page_wait(launch, Choice("main"))
+        assert waiting.is_responsive() == f"http://127.0.0.1:{app.server().port}/", "the launch watches the port file the journal writes, and sees the page answer with no supervisor to tell"
         waiting.wait()
         import webbrowser
         monkeypatch.setattr(webbrowser, "open", lambda url, new=0: opened.append(url) or True)

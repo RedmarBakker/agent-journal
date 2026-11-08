@@ -274,19 +274,21 @@ class Launch:
         path.chmod(0o600)
         path.write_text(json.dumps(launch))
         if not self.is_plan_driver:
-            waiting = PageWait(
-                self.root / ".journal" / "runtime" / "port",
-                launch["socket"],
-                (launch["band"]["left"], launch["band"]["middle"]),
-                "" if self.browser_off else f"?env={choice.environment}",
-                self.log,
-            )
-            waiting.start()
+            self.page_wait(launch, choice).start()
         try:
             return subprocess.run(["sh", str(self.package / "supervisor" / "launcher.sh"), sys.executable, str(path)], cwd=self.root).returncode
         finally:
             if path.is_file() and json.loads(path.read_text()).get("launch") == launch["launch"]:
                 path.unlink()
+
+    def page_wait(self, launch: dict, choice: Choice) -> PageWait:
+        return PageWait(
+            Config.rooted(self.root).port_file,
+            launch["socket"],
+            (launch["band"]["left"], launch["band"]["middle"]),
+            "" if self.browser_off else f"?env={choice.environment}",
+            self.log,
+        )
 
     def stop_earlier_launch(self, path: Path) -> None:
         if self.is_plan_driver:
