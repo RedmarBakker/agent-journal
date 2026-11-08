@@ -8,9 +8,9 @@ from itertools import islice
 from pathlib import Path
 
 from journal.support.command_classifier import CommandClassifier
-from journal.support.command_part import CommandPart
 from journal.support.part import Part
 from journal.support.process_check import ProcessCheck
+from journal.support.command_part import CommandPart
 
 BLOCK_BYTES = 65536
 STYLE_CODES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
