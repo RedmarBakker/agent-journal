@@ -187,7 +187,7 @@ class ShellRunner:
                     self.starting_reader_watch(folder, caller)
                 yield self.send_notes(caller, environment, display.notes).encode()
                 return
-            if limit > 0 and (immediate or Timeout.seconds(limit).started(began).is_elapsed(time.monotonic())):
+            if limit > 0 and folder.has_part(shown) and (immediate or Timeout.seconds(limit).started(began).is_elapsed(time.monotonic())):
                 yield self.background_move(folder, request.line, shown, caller, environment, display.notes).encode()
                 return
             time.sleep(TICK_SECONDS)
